@@ -283,10 +283,10 @@ export default function ConsolidatedReport({ onBack, year, moduleType }: Consoli
                       {moduleType === 'fluxo-caixa' ? (
                         <>
                           <td className="text-right py-3 px-4 text-green-600 font-medium">
-                            {formatCurrency(row.entradas)}
+                            {formatCurrency(row.entradas ?? 0)}
                           </td>
                           <td className="text-right py-3 px-4 text-red-600 font-medium">
-                            {formatCurrency(row.saidas)}
+                            {formatCurrency(row.saidas ?? 0)}
                           </td>
                           <td className={`text-right py-3 px-4 font-bold ${row.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(row.saldo)}
