@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { FinancialSession } from '@/types/financial';
+import { FinancialSession, FluxoCaixaData, BalancoPatrimonialData } from '@/types/financial';
 import { formatCurrency } from '@/hooks/useCalculations';
 import { toast } from 'sonner';
 
@@ -14,8 +14,10 @@ interface SessionHistoryProps {
 
 export default function SessionHistory({ onBack, onViewSession, onEdit }: SessionHistoryProps) {
   const supabase = createSupabaseClient();
+
   const [sessions, setSessions] = useState<FinancialSession[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [filterModule, setFilterModule] = useState<'all' | 'fluxo-caixa' | 'balanco-patrimonial'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'completed' | 'archived'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,12 +25,22 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
 
   useEffect(() => {
     loadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterModule, filterStatus]);
 
   const loadSessions = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      setLoading(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      // ✅ evita travar loading se não estiver logado
+      if (!session) {
+        setSessions([]);
+        return;
+      }
 
       let query = supabase
         .from('financial_sessions')
@@ -36,19 +48,14 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
-      if (filterModule !== 'all') {
-        query = query.eq('module_type', filterModule);
-      }
-
-      if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus);
-      }
+      if (filterModule !== 'all') query = query.eq('module_type', filterModule);
+      if (filterStatus !== 'all') query = query.eq('status', filterStatus);
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      setSessions(data || []);
+      setSessions((data as FinancialSession[]) || []);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
       toast.error('Erro ao carregar histórico');
@@ -59,16 +66,13 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('financial_sessions')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('financial_sessions').delete().eq('id', id);
 
       if (error) throw error;
 
       toast.success('Análise deletada com sucesso!');
-      loadSessions();
       setDeleteConfirm(null);
+      loadSessions();
     } catch (error) {
       console.error('Erro ao deletar:', error);
       toast.error('Erro ao deletar análise');
@@ -90,16 +94,22 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
       completed: 'Concluído',
       archived: 'Arquivado',
     };
+
+    const key = status as keyof typeof styles;
+
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles]}`}>
-        {labels[status as keyof typeof labels]}
+      <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[key] ?? styles.archived}`}>
+        {labels[key] ?? 'Arquivado'}
       </span>
     );
   };
 
+  // ✅ Corrigido: cast correto do session.data
   const getSummary = (session: FinancialSession) => {
     if (session.module_type === 'fluxo-caixa') {
-      const saldo = session.data.saldo || 0;
+      const data = session.data as FluxoCaixaData | undefined;
+      const saldo = data?.saldo ?? 0;
+
       return (
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">Saldo:</span>
@@ -108,18 +118,28 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
           </span>
         </div>
       );
-    } else {
-      const patrimonio = session.data.patrimonioLiquido || 0;
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Patrimônio:</span>
-          <span className={`font-bold ${patrimonio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(patrimonio)}
-          </span>
-        </div>
-      );
     }
+
+    const data = session.data as BalancoPatrimonialData | undefined;
+    const patrimonio = data?.patrimonioLiquido ?? 0;
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-600">Patrimônio:</span>
+        <span className={`font-bold ${patrimonio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {formatCurrency(patrimonio)}
+        </span>
+      </div>
+    );
   };
+
+  // ✅ evita duplicar filter+map em vários lugares
+  const filteredSessions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sessions;
+
+    return sessions.filter((s) => (s.session_name || '').toLowerCase().includes(q));
+  }, [sessions, searchQuery]);
 
   if (loading) {
     return (
@@ -137,22 +157,15 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <button
-            onClick={onBack}
-            className="text-gray-600 hover:text-gray-900 mb-4 flex items-center gap-2"
-          >
+          <button onClick={onBack} className="text-gray-600 hover:text-gray-900 mb-4 flex items-center gap-2">
             ← Voltar
           </button>
-          
-          <h1 className="text-3xl font-bold text-secondary-900 mb-6">
-            Histórico de Análises
-          </h1>
+
+          <h1 className="text-3xl font-bold text-secondary-900 mb-6">Histórico de Análises</h1>
 
           {/* Busca */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Buscar
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
             <input
               type="text"
               value={searchQuery}
@@ -165,9 +178,7 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
           {/* Filtros */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Módulo
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Módulo</label>
               <select
                 value={filterModule}
                 onChange={(e) => setFilterModule(e.target.value as any)}
@@ -180,9 +191,7 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value as any)}
@@ -198,18 +207,11 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
         </div>
 
         {/* Lista de Sessões */}
-        {sessions.filter(s => 
-          searchQuery === '' || 
-          s.session_name.toLowerCase().includes(searchQuery.toLowerCase())
-        ).length === 0 ? (
+        {filteredSessions.length === 0 ? (
           <div className="bg-white rounded-xl shadow-lg p-12 text-center">
             <div className="text-6xl mb-4">📊</div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Nenhuma análise encontrada
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Comece criando sua primeira análise financeira
-            </p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma análise encontrada</h3>
+            <p className="text-gray-600 mb-6">Comece criando sua primeira análise financeira</p>
             <button
               onClick={onBack}
               className="px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors font-medium"
@@ -219,31 +221,28 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
           </div>
         ) : (
           <div className="space-y-4">
-            {sessions.filter(s => 
-              searchQuery === '' || 
-              s.session_name.toLowerCase().includes(searchQuery.toLowerCase())
-            ).map((session) => (
-              <div
-                key={session.id}
-                className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow"
-              >
+            {filteredSessions.map((session) => (
+              <div key={session.id} className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   {/* Info */}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-secondary-900">
-                        {session.session_name}
-                      </h3>
+                      <h3 className="text-xl font-bold text-secondary-900">{session.session_name}</h3>
                       {getStatusBadge(session.status)}
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-3">
                       <span className="flex items-center gap-1">
-                        📅 {new Date(2024, session.month - 1).toLocaleDateString('pt-BR', { month: 'long' })} {session.year}
+                        {/* ✅ Corrigido: usa session.year no Date */}
+                        📅{' '}
+                        {new Date(session.year, session.month - 1, 1).toLocaleDateString('pt-BR', {
+                          month: 'long',
+                        })}{' '}
+                        {session.year}
                       </span>
-                      <span className="flex items-center gap-1">
-                        📊 {getModuleName(session.module_type)}
-                      </span>
+
+                      <span className="flex items-center gap-1">📊 {getModuleName(session.module_type)}</span>
+
                       <span className="flex items-center gap-1">
                         🕒 {new Date(session.created_at).toLocaleDateString('pt-BR')}
                       </span>
@@ -262,7 +261,7 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
                         ✏️ Editar
                       </button>
                     )}
-                    
+
                     {onViewSession && (
                       <button
                         onClick={() => onViewSession(session)}
@@ -271,7 +270,7 @@ export default function SessionHistory({ onBack, onViewSession, onEdit }: Sessio
                         Ver Detalhes
                       </button>
                     )}
-                    
+
                     {deleteConfirm === session.id ? (
                       <div className="flex gap-2">
                         <button
