@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { FinancialSession } from '@/types/financial';
+import { FinancialSession, FluxoCaixaData, BalancoPatrimonialData } from '@/types/financial';
 import { formatCurrency } from '@/hooks/useCalculations';
 
 interface DashboardProps {
@@ -11,6 +11,7 @@ interface DashboardProps {
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const supabase = createSupabaseClient();
+
   const [stats, setStats] = useState({
     totalSessions: 0,
     fluxoCaixaCount: 0,
@@ -18,17 +19,35 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     lastSaldo: 0,
     lastPatrimonio: 0,
   });
+
   const [recentSessions, setRecentSessions] = useState<FinancialSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadDashboard = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      setLoading(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      // ✅ não travar loading se não tiver sessão
+      if (!session) {
+        setRecentSessions([]);
+        setStats({
+          totalSessions: 0,
+          fluxoCaixaCount: 0,
+          balancoCount: 0,
+          lastSaldo: 0,
+          lastPatrimonio: 0,
+        });
+        return;
+      }
 
       // Carregar todas as sessões
       const { data: sessions, error } = await supabase
@@ -39,21 +58,31 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
       if (error) throw error;
 
-      const allSessions = sessions || [];
+      const allSessions: FinancialSession[] = (sessions as FinancialSession[]) || [];
 
       // Calcular estatísticas
-      const fluxoSessions = allSessions.filter(s => s.module_type === 'fluxo-caixa');
-      const balancoSessions = allSessions.filter(s => s.module_type === 'balanco-patrimonial');
+      const fluxoSessions = allSessions.filter((s) => s.module_type === 'fluxo-caixa');
+      const balancoSessions = allSessions.filter((s) => s.module_type === 'balanco-patrimonial');
 
       const lastFluxo = fluxoSessions[0];
       const lastBalanco = balancoSessions[0];
+
+      const lastSaldo =
+        lastFluxo?.module_type === 'fluxo-caixa'
+          ? ((lastFluxo.data as FluxoCaixaData | undefined)?.saldo ?? 0)
+          : 0;
+
+      const lastPatrimonio =
+        lastBalanco?.module_type === 'balanco-patrimonial'
+          ? ((lastBalanco.data as BalancoPatrimonialData | undefined)?.patrimonioLiquido ?? 0)
+          : 0;
 
       setStats({
         totalSessions: allSessions.length,
         fluxoCaixaCount: fluxoSessions.length,
         balancoCount: balancoSessions.length,
-        lastSaldo: lastFluxo?.data?.saldo || 0,
-        lastPatrimonio: lastBalanco?.data?.patrimonioLiquido || 0,
+        lastSaldo,
+        lastPatrimonio,
       });
 
       setRecentSessions(allSessions.slice(0, 3));
@@ -80,34 +109,15 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-secondary-900 mb-2">
-            Dashboard
-          </h1>
-          <p className="text-gray-600">
-            Visão geral das suas finanças
-          </p>
+          <h1 className="text-4xl font-bold text-secondary-900 mb-2">Dashboard</h1>
+          <p className="text-gray-600">Visão geral das suas finanças</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            icon="📊"
-            title="Total de Análises"
-            value={stats.totalSessions.toString()}
-            subtitle="análises criadas"
-          />
-          <StatCard
-            icon="💰"
-            title="Fluxo de Caixa"
-            value={stats.fluxoCaixaCount.toString()}
-            subtitle="análises de fluxo"
-          />
-          <StatCard
-            icon="🏦"
-            title="Balanço Patrimonial"
-            value={stats.balancoCount.toString()}
-            subtitle="análises de balanço"
-          />
+          <StatCard icon="📊" title="Total de Análises" value={stats.totalSessions.toString()} subtitle="análises criadas" />
+          <StatCard icon="💰" title="Fluxo de Caixa" value={stats.fluxoCaixaCount.toString()} subtitle="análises de fluxo" />
+          <StatCard icon="🏦" title="Balanço Patrimonial" value={stats.balancoCount.toString()} subtitle="análises de balanço" />
           <StatCard
             icon="💵"
             title="Último Saldo"
@@ -119,9 +129,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
         {/* Quick Actions */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <h2 className="text-2xl font-bold text-secondary-900 mb-4">
-            Ações Rápidas
-          </h2>
+          <h2 className="text-2xl font-bold text-secondary-900 mb-4">Ações Rápidas</h2>
           <div className="grid md:grid-cols-3 gap-4">
             <button
               onClick={() => onNavigate('new-analysis')}
@@ -129,9 +137,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             >
               <div className="text-4xl mb-3">➕</div>
               <h3 className="text-xl font-bold mb-2">Nova Análise</h3>
-              <p className="text-primary-100">
-                Criar nova análise financeira
-              </p>
+              <p className="text-primary-100">Criar nova análise financeira</p>
             </button>
 
             <button
@@ -140,9 +146,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             >
               <div className="text-4xl mb-3">📋</div>
               <h3 className="text-xl font-bold mb-2">Ver Histórico</h3>
-              <p className="text-gray-300">
-                Acessar análises anteriores
-              </p>
+              <p className="text-gray-300">Acessar análises anteriores</p>
             </button>
 
             <button
@@ -151,9 +155,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             >
               <div className="text-4xl mb-3">📊</div>
               <h3 className="text-xl font-bold mb-2">Relatório Anual</h3>
-              <p className="text-blue-100">
-                Ver gráficos e análises
-              </p>
+              <p className="text-blue-100">Ver gráficos e análises</p>
             </button>
           </div>
         </div>
@@ -161,9 +163,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         {/* Recent Sessions */}
         {recentSessions.length > 0 && (
           <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-secondary-900 mb-4">
-              Análises Recentes
-            </h2>
+            <h2 className="text-2xl font-bold text-secondary-900 mb-4">Análises Recentes</h2>
+
             <div className="space-y-4">
               {recentSessions.map((session) => (
                 <div
@@ -171,24 +172,33 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <div>
-                    <h3 className="font-bold text-secondary-900">
-                      {session.session_name}
-                    </h3>
+                    <h3 className="font-bold text-secondary-900">{session.session_name || 'Análise'}</h3>
                     <p className="text-sm text-gray-600">
                       {session.module_type === 'fluxo-caixa' ? '💰 Fluxo de Caixa' : '🏦 Balanço Patrimonial'} •{' '}
                       {new Date(session.created_at).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
+
                   <div className="text-right">
-                    {session.module_type === 'fluxo-caixa' ? (
-                      <span className={`font-bold ${(session.data.saldo || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(session.data.saldo || 0)}
-                      </span>
-                    ) : (
-                      <span className={`font-bold ${(session.data.patrimonioLiquido || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(session.data.patrimonioLiquido || 0)}
-                      </span>
-                    )}
+                    {session.module_type === 'fluxo-caixa' ? (() => {
+                      const data = session.data as FluxoCaixaData | undefined;
+                      const saldo = data?.saldo ?? 0;
+
+                      return (
+                        <span className={`font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(saldo)}
+                        </span>
+                      );
+                    })() : (() => {
+                      const data = session.data as BalancoPatrimonialData | undefined;
+                      const patrimonio = data?.patrimonioLiquido ?? 0;
+
+                      return (
+                        <span className={`font-bold ${patrimonio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(patrimonio)}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
@@ -200,17 +210,17 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   );
 }
 
-function StatCard({ 
-  icon, 
-  title, 
-  value, 
-  subtitle, 
-  valueColor = 'text-secondary-900' 
-}: { 
-  icon: string; 
-  title: string; 
-  value: string; 
-  subtitle: string; 
+function StatCard({
+  icon,
+  title,
+  value,
+  subtitle,
+  valueColor = 'text-secondary-900',
+}: {
+  icon: string;
+  title: string;
+  value: string;
+  subtitle: string;
   valueColor?: string;
 }) {
   return (
@@ -222,3 +232,4 @@ function StatCard({
     </div>
   );
 }
+
