@@ -5,7 +5,7 @@ import {
   activateSubscription,
   deactivateSubscription,
   renewSubscription,
-} from '@/lib/subscription';
+} from '@/lib/subscription.server';
 
 /**
  * Webhook Hotmart
