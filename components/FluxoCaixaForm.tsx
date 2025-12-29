@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FluxoCaixaData, FinancialSession } from '@/types/financial';
 import { calculateFluxoCaixa, formatCurrency } from '@/hooks/useCalculations';
 import { createSupabaseClient } from '@/lib/supabase.client';
@@ -40,7 +40,6 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
   const [year, setYear] = useState(editSession?.year || new Date().getFullYear());
   const [saving, setSaving] = useState(false);
 
-  // Calcular totais automaticamente
   const calculated = calculateFluxoCaixa(data);
 
   const handleChange = (field: keyof FluxoCaixaData, value: string) => {
@@ -62,39 +61,36 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
         return;
       }
 
+      // ✅ Casting agressivo para 'any' para ignorar definições de tipos inexistentes ou 'never'
+      const table = (supabase.from('financial_sessions') as any);
+
+      const payload = {
+        session_name: sessionName,
+        month: month,
+        year: year,
+        data: calculated,
+        updated_at: new Date().toISOString(),
+      };
+
       if (editSession) {
-        // Atualizar sessão existente
-        const { error } = await supabase
-          .from('financial_sessions')
-          .update({
-            session_name: sessionName,
-            month,
-            year,
-            data: calculated,
-            updated_at: new Date().toISOString(),
-          })
+        const { error } = await table
+          .update(payload as any)
           .eq('id', editSession.id);
 
         if (error) throw error;
         toast.success('Análise atualizada com sucesso!');
       } else {
-        // Criar nova sessão
-        const { error } = await supabase
-          .from('financial_sessions')
+        const { error } = await table
           .insert({
+            ...payload,
             user_id: session.user.id,
-            session_name: sessionName,
             module_type: 'fluxo-caixa',
-            month,
-            year,
-            data: calculated,
             status: 'completed',
-          });
+          } as any);
 
         if (error) throw error;
         toast.success('Análise salva com sucesso!');
         
-        // Limpar formulário apenas ao criar nova
         setData(INITIAL_DATA);
         setSessionName('');
       }
@@ -109,7 +105,6 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <button
             onClick={onBack}
@@ -167,19 +162,17 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
           </div>
         </div>
 
-        {/* Entradas */}
+        {/* Seções de Entrada e Saída */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-primary-600 mb-4 border-b-2 border-primary-500 pb-2">
             💰 Entradas
           </h2>
-          
           <div className="grid md:grid-cols-2 gap-4">
             <InputField label="Salário" value={data.salario} onChange={(v) => handleChange('salario', v)} />
             <InputField label="Receitas de Vendas" value={data.receitasVendas} onChange={(v) => handleChange('receitasVendas', v)} />
             <InputField label="Rendas Extras" value={data.rendasExtras} onChange={(v) => handleChange('rendasExtras', v)} />
             <InputField label="Outras Entradas" value={data.outrasEntradas} onChange={(v) => handleChange('outrasEntradas', v)} />
           </div>
-
           <div className="mt-4 p-4 bg-green-50 rounded-lg">
             <p className="text-lg font-bold text-green-700">
               Total de Entradas: {formatCurrency(calculated.totalEntradas || 0)}
@@ -187,12 +180,10 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
           </div>
         </div>
 
-        {/* Despesas Fixas */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-red-600 mb-4 border-b-2 border-red-500 pb-2">
             🏠 Despesas Fixas
           </h2>
-          
           <div className="grid md:grid-cols-2 gap-4">
             <InputField label="Aluguel/Financiamento" value={data.aluguel} onChange={(v) => handleChange('aluguel', v)} />
             <InputField label="Condomínio" value={data.condominio} onChange={(v) => handleChange('condominio', v)} />
@@ -201,7 +192,6 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
             <InputField label="Internet" value={data.internet} onChange={(v) => handleChange('internet', v)} />
             <InputField label="Mensalidades" value={data.mensalidades} onChange={(v) => handleChange('mensalidades', v)} />
           </div>
-
           <div className="mt-4 p-4 bg-red-50 rounded-lg">
             <p className="text-lg font-bold text-red-700">
               Total de Despesas Fixas: {formatCurrency(calculated.totalDespesasFixas || 0)}
@@ -209,12 +199,10 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
           </div>
         </div>
 
-        {/* Despesas Variáveis */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-orange-600 mb-4 border-b-2 border-orange-500 pb-2">
             🛒 Despesas Variáveis
           </h2>
-          
           <div className="grid md:grid-cols-2 gap-4">
             <InputField label="Supermercado/Alimentação" value={data.supermercado} onChange={(v) => handleChange('supermercado', v)} />
             <InputField label="Combustível/Transporte" value={data.combustivel} onChange={(v) => handleChange('combustivel', v)} />
@@ -223,7 +211,6 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
             <InputField label="Lazer/Entretenimento" value={data.lazer} onChange={(v) => handleChange('lazer', v)} />
             <InputField label="Outras Despesas" value={data.outrasVariaveis} onChange={(v) => handleChange('outrasVariaveis', v)} />
           </div>
-
           <div className="mt-4 p-4 bg-orange-50 rounded-lg">
             <p className="text-lg font-bold text-orange-700">
               Total de Despesas Variáveis: {formatCurrency(calculated.totalDespesasVariaveis || 0)}
@@ -231,10 +218,8 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
           </div>
         </div>
 
-        {/* Resumo */}
         <div className="bg-gradient-to-br from-secondary-900 to-secondary-800 rounded-xl shadow-lg p-6 mb-6 text-white">
           <h2 className="text-2xl font-bold mb-4">📊 Resumo</h2>
-          
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-lg">Total de Entradas:</span>
@@ -254,7 +239,6 @@ export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormPr
           </div>
         </div>
 
-        {/* Botões */}
         <div className="flex gap-4">
           <button
             onClick={onBack}
