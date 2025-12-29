@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase.client';
-import { checkSubscriptionStatus } from '@/lib/subscription';
+import { getSubscriptionStatusClient } from '@/lib/subscription';
 import SubscriptionBlockedScreen from '@/components/SubscriptionBlockedScreen';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ModuleSelector from '@/components/ModuleSelector';
@@ -14,7 +14,16 @@ import SessionHistory from '@/components/SessionHistory';
 import ConsolidatedReport from '@/components/ConsolidatedReport';
 import ReportSelector from '@/components/ReportSelector';
 
-type AppState = 'loading' | 'welcome' | 'dashboard' | 'module-selector' | 'fluxo-caixa' | 'balanco-patrimonial' | 'history' | 'report-selector' | 'report';
+type AppState =
+  | 'loading'
+  | 'welcome'
+  | 'dashboard'
+  | 'module-selector'
+  | 'fluxo-caixa'
+  | 'balanco-patrimonial'
+  | 'history'
+  | 'report-selector'
+  | 'report';
 
 interface ReportConfig {
   year: number;
@@ -24,23 +33,29 @@ interface ReportConfig {
 export default function AppPage() {
   const router = useRouter();
   const supabase = createSupabaseClient();
-  
+
   const [loading, setLoading] = useState(true);
   const [isSubscriptionActive, setIsSubscriptionActive] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [appState, setAppState] = useState<AppState>('loading');
   const [showWelcome, setShowWelcome] = useState(true);
-  const [reportConfig, setReportConfig] = useState<ReportConfig>({ year: new Date().getFullYear(), moduleType: 'fluxo-caixa' });
+  const [reportConfig, setReportConfig] = useState<ReportConfig>({
+    year: new Date().getFullYear(),
+    moduleType: 'fluxo-caixa',
+  });
   const [editSession, setEditSession] = useState<any>(null);
 
   useEffect(() => {
     checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session) {
         router.push('/login');
         return;
@@ -48,12 +63,13 @@ export default function AppPage() {
 
       setUser(session.user);
 
-      // Verifica status da assinatura
-      const { isActive } = await checkSubscriptionStatus(session.user.id);
+      // ✅ Verifica status da assinatura via API client-safe
+      const status = await getSubscriptionStatusClient(session.user.id);
+      const isActive = Boolean(status?.isActive);
+
       setIsSubscriptionActive(isActive);
 
       if (isActive) {
-        // Verificar se é primeira vez (pode usar localStorage ou preferência do usuário)
         const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
         if (hasSeenWelcome) {
           setShowWelcome(false);
@@ -111,42 +127,41 @@ export default function AppPage() {
     return <SubscriptionBlockedScreen />;
   }
 
-  // Renderiza estado atual
   switch (appState) {
     case 'welcome':
       return <WelcomeScreen onStart={handleStart} />;
-    
+
     case 'dashboard':
       return <Dashboard onNavigate={handleDashboardNavigate} />;
-    
+
     case 'module-selector':
       return <ModuleSelector onSelectModule={handleSelectModule} />;
-    
+
     case 'fluxo-caixa':
       return (
-        <FluxoCaixaForm 
+        <FluxoCaixaForm
           onBack={() => {
             setEditSession(null);
             setAppState('dashboard');
-          }} 
+          }}
           editSession={editSession}
         />
       );
-    
+
     case 'balanco-patrimonial':
       return (
-        <BalancoPatrimonialForm 
+        <BalancoPatrimonialForm
           onBack={() => {
             setEditSession(null);
             setAppState('dashboard');
-          }} 
+          }}
           editSession={editSession}
         />
       );
-    
+
     case 'history':
       return (
-        <SessionHistory 
+        <SessionHistory
           onBack={() => setAppState('dashboard')}
           onEdit={(session) => {
             setEditSession(session);
@@ -154,24 +169,19 @@ export default function AppPage() {
           }}
         />
       );
-    
+
     case 'report-selector':
-      return (
-        <ReportSelector 
-          onSelect={handleReportSelect}
-          onBack={() => setAppState('dashboard')}
-        />
-      );
-    
+      return <ReportSelector onSelect={handleReportSelect} onBack={() => setAppState('dashboard')} />;
+
     case 'report':
       return (
-        <ConsolidatedReport 
+        <ConsolidatedReport
           year={reportConfig.year}
           moduleType={reportConfig.moduleType}
           onBack={() => setAppState('dashboard')}
         />
       );
-    
+
     default:
       return null;
   }
