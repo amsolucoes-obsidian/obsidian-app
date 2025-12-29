@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createSupabaseAdmin } from '@/lib/supabase.server';
+
+const supabase = createSupabaseAdmin();
 import {
   activateSubscription,
   deactivateSubscription,

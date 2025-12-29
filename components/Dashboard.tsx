@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createSupabaseClient } from '@/lib/supabase.client';
 import { FinancialSession, FluxoCaixaData, BalancoPatrimonialData } from '@/types/financial';
 import { formatCurrency } from '@/hooks/useCalculations';
 

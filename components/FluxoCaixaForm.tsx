@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FluxoCaixaData, FinancialSession } from '@/types/financial';
 import { calculateFluxoCaixa, formatCurrency } from '@/hooks/useCalculations';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createSupabaseClient } from '@/lib/supabase.client';
 import { toast } from 'sonner';
 
 interface FluxoCaixaFormProps {

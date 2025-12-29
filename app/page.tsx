@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createSupabaseClient } from '@/lib/supabase.client';
 import { checkSubscriptionStatus } from '@/lib/subscription';
 import SubscriptionBlockedScreen from '@/components/SubscriptionBlockedScreen';
 import WelcomeScreen from '@/components/WelcomeScreen';

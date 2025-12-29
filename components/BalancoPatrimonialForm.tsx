@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { BalancoPatrimonialData, FinancialSession } from '@/types/financial';
 import { calculateBalanco, formatCurrency } from '@/hooks/useCalculations';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createSupabaseClient } from '@/lib/supabase.client';
 import { toast } from 'sonner';
 
 interface BalancoPatrimonialFormProps {
