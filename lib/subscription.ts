@@ -1,4 +1,6 @@
-import { supabase } from './supabase';
+// lib/subscription.ts
+import 'server-only';
+import { createSupabaseAdmin } from '@/lib/supabase.server';
 
 export interface Subscription {
   id: string;
@@ -12,16 +14,29 @@ export interface Subscription {
 }
 
 /**
+ * Sempre usa admin (service role) porque:
+ * - subscriptions e hotmart_events são tabelas do seu banco
+ * - essa lib é usada em /api/webhooks (server)
+ */
+function getAdmin() {
+  return createSupabaseAdmin();
+}
+
+/**
  * Verifica se o usuário tem assinatura ativa
  * Regras:
  * - status deve ser 'active'
- * - expires_at deve ser maior ou igual à data atual
+ * - expires_at (se existir) deve ser >= agora
  */
-export async function checkSubscriptionStatus(userId: string): Promise<{
+export async function checkSubscriptionStatus(
+  userId: string
+): Promise<{
   isActive: boolean;
   subscription: Subscription | null;
   reason?: string;
 }> {
+  const supabase = getAdmin();
+
   try {
     const { data: subscription, error } = await supabase
       .from('subscriptions')
@@ -37,7 +52,6 @@ export async function checkSubscriptionStatus(userId: string): Promise<{
       };
     }
 
-    // Verifica se status é ativo
     if (subscription.status !== 'active') {
       return {
         isActive: false,
@@ -46,7 +60,6 @@ export async function checkSubscriptionStatus(userId: string): Promise<{
       };
     }
 
-    // Verifica se não expirou
     if (subscription.expires_at) {
       const expiresAt = new Date(subscription.expires_at);
       const now = new Date();
@@ -87,6 +100,8 @@ export async function upsertSubscription(
     hotmart_purchase_id?: string;
   }
 ) {
+  const supabase = getAdmin();
+
   try {
     const { data: subscription, error } = await supabase
       .from('subscriptions')
@@ -95,17 +110,15 @@ export async function upsertSubscription(
         plan: 'annual',
         ...data,
       })
-      .select()
+      .select('*')
       .single();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    return { success: true, subscription };
+    return { success: true as const, subscription };
   } catch (error) {
     console.error('Error upserting subscription:', error);
-    return { success: false, error };
+    return { success: false as const, error };
   }
 }
 
@@ -115,21 +128,24 @@ export async function upsertSubscription(
 export async function activateSubscription(
   userId: string,
   hotmartData: {
-    subscription_id?: string;
-    purchase_id?: string;
-    starts_at?: string;
-    expires_at?: string;
+    subscription_id?: string | null;
+    purchase_id?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
   }
 ) {
   const startsAt = hotmartData.starts_at || new Date().toISOString();
-  const expiresAt = hotmartData.expires_at || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // +1 ano
+
+  const expiresAt =
+    hotmartData.expires_at ||
+    new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // +1 ano
 
   return upsertSubscription(userId, {
     status: 'active',
     starts_at: startsAt,
     expires_at: expiresAt,
-    hotmart_subscription_id: hotmartData.subscription_id,
-    hotmart_purchase_id: hotmartData.purchase_id,
+    hotmart_subscription_id: hotmartData.subscription_id || undefined,
+    hotmart_purchase_id: hotmartData.purchase_id || undefined,
   });
 }
 
@@ -145,14 +161,13 @@ export async function deactivateSubscription(userId: string) {
 /**
  * Renova assinatura (renovação anual aprovada)
  */
-export async function renewSubscription(
-  userId: string,
-  expiresAt?: string
-) {
-  const newExpiresAt = expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // +1 ano
+export async function renewSubscription(userId: string, expiresAt?: string | null) {
+  const newExpiresAt =
+    expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // +1 ano
 
   return upsertSubscription(userId, {
     status: 'active',
     expires_at: newExpiresAt,
   });
 }
+
