@@ -1,13 +1,16 @@
 // lib/subscription.ts (client-safe)
-// Este arquivo pode ser importado por componentes client sem quebrar o build.
+// Este arquivo pode ser importado por componentes "use client" sem quebrar o build.
 
-export async function getSubscriptionStatusClient(userId: string) {
+export type SubscriptionStatusResponse = {
+  isActive: boolean;
+  subscription: any | null;
+  reason?: string;
+};
+
+export async function getSubscriptionStatusClient(userId: string): Promise<SubscriptionStatusResponse> {
   const res = await fetch(
     `/api/subscription/status?userId=${encodeURIComponent(userId)}`,
-    {
-      method: 'GET',
-      cache: 'no-store',
-    }
+    { method: 'GET', cache: 'no-store' }
   );
 
   if (!res.ok) {
@@ -16,6 +19,7 @@ export async function getSubscriptionStatusClient(userId: string) {
 
   return res.json();
 }
+
 
 
 
