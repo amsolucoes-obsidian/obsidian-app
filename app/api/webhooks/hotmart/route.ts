@@ -1,3 +1,4 @@
+// app/api/webhooks/hotmart/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase.server';
 import {
@@ -13,47 +14,41 @@ type ProcessResult =
 function getEventType(body: any) {
   return body?.event || body?.event_type || body?.type || 'UNKNOWN';
 }
+
 function getData(body: any) {
   return body?.data || body;
 }
+
 function getBuyerEmail(data: any) {
   return data?.buyer?.email || data?.purchase?.buyer?.email || null;
 }
+
 function getHotmartPurchaseId(data: any) {
   return data?.purchase?.transaction || data?.purchase?.id || null;
 }
+
 function getHotmartSubscriptionId(data: any) {
   return data?.subscription?.subscriber?.code || data?.subscription?.id || null;
 }
 
-const supabase = createSupabaseAdmin();
-
-async function findUserIdByEmail(email: string) {
-  const target = email.toLowerCase();
-  const perPage = 200;
-
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
-    if (error) throw error;
-
-    const user = data.users.find((u) => (u.email || '').toLowerCase() === target);
-    if (user?.id) return user.id;
-
-    if (data.users.length < perPage) break;
-  }
-
-  return null;
-}
-
 export async function POST(request: NextRequest) {
+  // ✅ tipagem “any” aqui evita o erro de "never" no build
+  const supabase = createSupabaseAdmin() as any;
+
   try {
     const expectedToken = process.env.HOTMART_WEBHOOK_SECRET;
+
     if (!expectedToken) {
-      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+      console.error('HOTMART_WEBHOOK_SECRET is missing');
+      return NextResponse.json(
+        { error: 'Webhook secret not configured' },
+        { status: 500 }
+      );
     }
 
     const hotmartToken = request.headers.get('x-hotmart-hottok');
     if (hotmartToken !== expectedToken) {
+      console.error('Invalid Hotmart token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -64,7 +59,8 @@ export async function POST(request: NextRequest) {
     const hotmartPurchaseId = getHotmartPurchaseId(data);
     const hotmartSubscriptionId = getHotmartSubscriptionId(data);
 
-    const { data: insertedEvent } = await supabase
+    // 1) Registra evento (log)
+    const { data: insertedEvent, error: insertError } = await supabase
       .from('hotmart_events')
       .insert({
         event_type: eventType,
@@ -76,8 +72,15 @@ export async function POST(request: NextRequest) {
       .select('id')
       .single();
 
-    const result = await processHotmartEvent(eventType, data);
+    if (insertError) {
+      console.error('Error inserting hotmart_events:', insertError);
+      // não bloqueia o processamento
+    }
 
+    // 2) Processa evento
+    const result = await processHotmartEvent(supabase, eventType, data);
+
+    // 3) Atualiza log
     const updatePayload = result.success
       ? { processed: true, processed_at: new Date().toISOString(), error_message: null }
       : { processed: false, error_message: result.error };
@@ -85,51 +88,100 @@ export async function POST(request: NextRequest) {
     if (insertedEvent?.id) {
       await supabase.from('hotmart_events').update(updatePayload).eq('id', insertedEvent.id);
     } else if (hotmartPurchaseId) {
-      await supabase.from('hotmart_events').update(updatePayload).eq('hotmart_purchase_id', hotmartPurchaseId);
+      await supabase
+        .from('hotmart_events')
+        .update(updatePayload)
+        .eq('hotmart_purchase_id', hotmartPurchaseId);
     }
 
-    if (result.success) return NextResponse.json({ success: true, message: result.message || 'ok' });
+    if (result.success) {
+      return NextResponse.json({ success: true, message: result.message || 'ok' });
+    }
+
     return NextResponse.json({ success: false, error: result.error }, { status: 500 });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Internal error' }, { status: 500 });
+    console.error('Webhook error:', error);
+    return NextResponse.json(
+      { error: error?.message || 'Internal error' },
+      { status: 500 }
+    );
   }
 }
 
-async function processHotmartEvent(eventType: string, data: any): Promise<ProcessResult> {
-  const buyerEmail = getBuyerEmail(data);
-  if (!buyerEmail) return { success: false, error: 'Buyer email not found in webhook data' };
+async function processHotmartEvent(
+  supabase: any,
+  eventType: string,
+  data: any
+): Promise<ProcessResult> {
+  try {
+    const buyerEmail = getBuyerEmail(data);
+    if (!buyerEmail) return { success: false, error: 'Buyer email not found in webhook data' };
 
-  const userId = await findUserIdByEmail(buyerEmail);
-  if (!userId) return { success: true, message: 'User not found yet' };
+    // busca userId pelo email via Admin API (paginado)
+    const target = buyerEmail.toLowerCase();
+    const perPage = 200;
 
-  switch (eventType) {
-    case 'PURCHASE_APPROVED':
-    case 'PURCHASE_COMPLETE':
-      await activateSubscription(userId, {
-        subscription_id: getHotmartSubscriptionId(data),
-        purchase_id: getHotmartPurchaseId(data),
-        starts_at: data?.purchase?.approved_date,
-        expires_at: data?.subscription?.date_next_charge,
-      });
-      break;
+    let userId: string | null = null;
 
-    case 'PURCHASE_CANCELED':
-    case 'PURCHASE_CHARGEBACK':
-    case 'PURCHASE_REFUNDED':
-    case 'SUBSCRIPTION_CANCELLATION':
-    case 'PURCHASE_DELAYED':
-      await deactivateSubscription(userId);
-      break;
+    for (let page = 1; page <= 20; page++) {
+      const { data: usersData, error } = await supabase.auth.admin.listUsers({ page, perPage });
+      if (error) throw error;
 
-    case 'SUBSCRIPTION_RENEWAL':
-      await renewSubscription(userId, data?.subscription?.date_next_charge);
-      break;
+      const user = usersData.users.find((u: any) => (u.email || '').toLowerCase() === target);
+      if (user?.id) {
+        userId = user.id;
+        break;
+      }
 
-    default:
-      // ignore
-      break;
+      if (usersData.users.length < perPage) break;
+    }
+
+    if (!userId) {
+      return { success: true, message: 'User not found yet' };
+    }
+
+    switch (eventType) {
+      case 'PURCHASE_APPROVED':
+      case 'PURCHASE_COMPLETE': {
+        await activateSubscription(userId, {
+          subscription_id: getHotmartSubscriptionId(data),
+          purchase_id: getHotmartPurchaseId(data),
+          starts_at: data?.purchase?.approved_date,
+          expires_at: data?.subscription?.date_next_charge,
+        });
+        break;
+      }
+
+      case 'PURCHASE_CANCELED':
+      case 'PURCHASE_CHARGEBACK':
+      case 'PURCHASE_REFUNDED':
+      case 'SUBSCRIPTION_CANCELLATION':
+      case 'PURCHASE_DELAYED': {
+        await deactivateSubscription(userId);
+        break;
+      }
+
+      case 'SUBSCRIPTION_RENEWAL': {
+        await renewSubscription(userId, data?.subscription?.date_next_charge);
+        break;
+      }
+
+      default:
+        console.log('Unhandled event type:', eventType);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error processing event:', error);
+    return { success: false, error: error?.message || 'Error processing event' };
   }
+}
 
-  return { success: true };
+// (Opcional) GET pra teste rápido
+export async function GET() {
+  return NextResponse.json({
+    status: 'Hotmart webhook endpoint is running',
+    timestamp: new Date().toISOString(),
+  });
 }
 
