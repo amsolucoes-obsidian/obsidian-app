@@ -1,57 +1,181 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase.client';
+import { getSubscriptionStatusClient } from '@/lib/subscription';
+import SubscriptionBlockedScreen from '@/components/SubscriptionBlockedScreen';
+import WelcomeScreen from '@/components/WelcomeScreen';
+import ModuleSelector from '@/components/ModuleSelector';
+import FluxoCaixaForm from '@/components/FluxoCaixaForm';
+import BalancoPatrimonialForm from '@/components/BalancoPatrimonialForm';
+import Dashboard from '@/components/Dashboard';
+import SessionHistory from '@/components/SessionHistory';
+import ConsolidatedReport from '@/components/ConsolidatedReport';
+import ReportSelector from '@/components/ReportSelector';
 
-export default function LoginPage() {
-  const supabase = createSupabaseClient();
+type AppState =
+  | 'loading'
+  | 'welcome'
+  | 'dashboard'
+  | 'module-selector'
+  | 'fluxo-caixa'
+  | 'balanco-patrimonial'
+  | 'history'
+  | 'report-selector'
+  | 'report';
+
+interface ReportConfig {
+  year: number;
+  moduleType: 'fluxo-caixa' | 'balanco-patrimonial';
+}
+
+export default function AppPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const supabase = createSupabaseClient();
+
+  const [loading, setLoading] = useState(true);
+  const [isSubscriptionActive, setIsSubscriptionActive] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [appState, setAppState] = useState<AppState>('loading');
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [reportConfig, setReportConfig] = useState<ReportConfig>({
+    year: new Date().getFullYear(),
+    moduleType: 'fluxo-caixa',
+  });
+  const [editSession, setEditSession] = useState<any>(null);
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) router.push('/');
-    };
-    checkUser();
-  }, [router, supabase]);
+    checkAuth();
+  }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setErrorMsg('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setErrorMsg('Erro: ' + error.message);
-    } else {
-      router.push('/');
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Se não estiver logado, manda para a página de login que criamos
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      setUser(session.user);
+
+      // ✅ Verifica status da assinatura com casting 'as any' para evitar erro de build
+      const status = await getSubscriptionStatusClient(session.user.id);
+      const statusAny = status as any;
+      const isActive = Boolean(statusAny?.isActive);
+
+      setIsSubscriptionActive(isActive);
+
+      if (isActive) {
+        const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
+        if (hasSeenWelcome) {
+          setShowWelcome(false);
+          setAppState('dashboard');
+        } else {
+          setAppState('welcome');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      router.push('/login');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  return (
-    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-xl p-8 shadow-2xl">
-        <h1 className="text-3xl font-extrabold text-center text-gray-900 mb-8 tracking-tight">OBSIDIAN</h1>
-        {errorMsg && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center border border-red-100">{errorMsg}</div>}
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail</label>
-            <input type="email" className="w-full p-3 border border-gray-300 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Senha</label>
-            <input type="password" className="w-full p-3 border border-gray-300 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
-            {loading ? 'Acessando...' : 'Entrar no Sistema'}
-          </button>
-        </form>
+  const handleStart = () => {
+    localStorage.setItem('hasSeenWelcome', 'true');
+    setShowWelcome(false);
+    setAppState('dashboard');
+  };
+
+  const handleDashboardNavigate = (destination: 'new-analysis' | 'history' | 'report') => {
+    if (destination === 'new-analysis') {
+      setAppState('module-selector');
+    } else if (destination === 'history') {
+      setAppState('history');
+    } else {
+      setAppState('report-selector');
+    }
+  };
+
+  const handleReportSelect = (year: number, moduleType: 'fluxo-caixa' | 'balanco-patrimonial') => {
+    setReportConfig({ year, moduleType });
+    setAppState('report');
+  };
+
+  const handleSelectModule = (module: 'fluxo-caixa' | 'balanco-patrimonial') => {
+    setAppState(module);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-secondary-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg">Carregando Obsidian...</p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Se o usuário está logado mas a assinatura está inativa (Hotmart não confirmou)
+  if (user && !isSubscriptionActive) {
+    return <SubscriptionBlockedScreen />;
+  }
+
+  // Máquina de estados para renderizar o componente correto
+  switch (appState) {
+    case 'welcome':
+      return <WelcomeScreen onStart={handleStart} />;
+    case 'dashboard':
+      return <Dashboard onNavigate={handleDashboardNavigate} />;
+    case 'module-selector':
+      return <ModuleSelector onSelectModule={handleSelectModule} />;
+    case 'fluxo-caixa':
+      return (
+        <FluxoCaixaForm
+          onBack={() => {
+            setEditSession(null);
+            setAppState('dashboard');
+          }}
+          editSession={editSession}
+        />
+      );
+    case 'balanco-patrimonial':
+      return (
+        <BalancoPatrimonialForm
+          onBack={() => {
+            setEditSession(null);
+            setAppState('dashboard');
+          }}
+          editSession={editSession}
+        />
+      );
+    case 'history':
+      return (
+        <SessionHistory
+          onBack={() => setAppState('dashboard')}
+          onEdit={(session) => {
+            setEditSession(session);
+            const s = session as any;
+            setAppState(s.module_type === 'fluxo-caixa' ? 'fluxo-caixa' : 'balanco-patrimonial');
+          }}
+        />
+      );
+    case 'report-selector':
+      return <ReportSelector onSelect={handleReportSelect} onBack={() => setAppState('dashboard')} />;
+    case 'report':
+      return (
+        <ConsolidatedReport
+          year={reportConfig.year}
+          moduleType={reportConfig.moduleType}
+          onBack={() => setAppState('dashboard')}
+        />
+      );
+    default:
+      return null;
+  }
 }
