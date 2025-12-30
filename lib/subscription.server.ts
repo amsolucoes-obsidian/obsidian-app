@@ -4,7 +4,7 @@ export async function checkSubscriptionStatusServer(userId: string) {
   const supabase = createSupabaseAdmin();
 
   try {
-    // 1. Buscamos como 'any'
+    // Forçamos casting para evitar erro de 'never'
     const { data, error }: any = await (supabase
       .from('subscriptions') as any)
       .select('*')
@@ -15,10 +15,9 @@ export async function checkSubscriptionStatusServer(userId: string) {
       return { isActive: false, subscription: null, reason: 'Assinatura não encontrada' };
     }
 
-    // 2. Criamos um novo objeto limpo para "quebrar" a inferência do TypeScript
+    // Quebramos a inferência do TS para evitar erro de propriedade inexistente
     const subscription = JSON.parse(JSON.stringify(data));
 
-    // 3. Agora acessamos as propriedades sem que o TS consiga reclamar de 'never'
     if (subscription.status !== 'active') {
       return { isActive: false, subscription, reason: 'Assinatura inativa' };
     }
