@@ -1,280 +1,141 @@
 'use client';
 
-import { useState } from 'react';
-import { FluxoCaixaData, FinancialSession } from '@/types/financial';
-import { calculateFluxoCaixa, formatCurrency } from '@/hooks/useCalculations';
-import { createSupabaseClient } from '@/lib/supabase.client';
-import { toast } from 'sonner';
+import React, { useState, useMemo } from 'react';
+import { ArrowLeft, Save, Plus, Trash2, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 
 interface FluxoCaixaFormProps {
   onBack: () => void;
-  editSession?: FinancialSession | null;
+  editSession?: any;
 }
 
-const INITIAL_DATA: FluxoCaixaData = {
-  salario: 0,
-  receitasVendas: 0,
-  rendasExtras: 0,
-  outrasEntradas: 0,
-  aluguel: 0,
-  condominio: 0,
-  energia: 0,
-  agua: 0,
-  internet: 0,
-  mensalidades: 0,
-  supermercado: 0,
-  combustivel: 0,
-  saude: 0,
-  vestuario: 0,
-  lazer: 0,
-  outrasVariaveis: 0,
-};
-
 export default function FluxoCaixaForm({ onBack, editSession }: FluxoCaixaFormProps) {
-  const supabase = createSupabaseClient();
-  const [data, setData] = useState<FluxoCaixaData>(
-    editSession ? (editSession.data as FluxoCaixaData) : INITIAL_DATA
-  );
-  const [sessionName, setSessionName] = useState(editSession?.session_name || '');
-  const [month, setMonth] = useState(editSession?.month || new Date().getMonth() + 1);
-  const [year, setYear] = useState(editSession?.year || new Date().getFullYear());
-  const [saving, setSaving] = useState(false);
+  // Estado inicial focado em performance
+  const [entries, setEntries] = useState(editSession?.data?.entries || [
+    { id: '1', description: '', value: 0, type: 'income' }
+  ]);
 
-  const calculated = calculateFluxoCaixa(data);
+  // Cálculos memorizados para evitar lentidão ao digitar
+  const totals = useMemo(() => {
+    const income = entries
+      .filter((e: any) => e.type === 'income')
+      .reduce((acc: number, cur: any) => acc + Number(cur.value), 0);
+    const expense = entries
+      .filter((e: any) => e.type === 'expense')
+      .reduce((acc: number, cur: any) => acc + Number(cur.value), 0);
+    return { income, expense, balance: income - expense };
+  }, [entries]);
 
-  const handleChange = (field: keyof FluxoCaixaData, value: string) => {
-    const numValue = parseFloat(value) || 0;
-    setData(prev => ({ ...prev, [field]: numValue }));
+  const addRow = (type: 'income' | 'expense') => {
+    setEntries([...entries, { id: Date.now().toString(), description: '', value: 0, type }]);
   };
 
-  const handleSave = async () => {
-    if (!sessionName.trim()) {
-      toast.error('Digite um nome para a análise');
-      return;
-    }
+  const updateRow = (id: string, field: string, value: any) => {
+    setEntries(entries.map((e: any) => e.id === id ? { ...e, [field]: value } : e));
+  };
 
-    setSaving(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Você precisa estar logado');
-        return;
-      }
-
-      // ✅ Casting agressivo para 'any' para ignorar definições de tipos inexistentes ou 'never'
-      const table = (supabase.from('financial_sessions') as any);
-
-      const payload = {
-        session_name: sessionName,
-        month: month,
-        year: year,
-        data: calculated,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (editSession) {
-        const { error } = await table
-          .update(payload as any)
-          .eq('id', editSession.id);
-
-        if (error) throw error;
-        toast.success('Análise atualizada com sucesso!');
-      } else {
-        const { error } = await table
-          .insert({
-            ...payload,
-            user_id: session.user.id,
-            module_type: 'fluxo-caixa',
-            status: 'completed',
-          } as any);
-
-        if (error) throw error;
-        toast.success('Análise salva com sucesso!');
-        
-        setData(INITIAL_DATA);
-        setSessionName('');
-      }
-    } catch (error: any) {
-      console.error('Erro ao salvar:', error);
-      toast.error('Erro ao salvar análise');
-    } finally {
-      setSaving(false);
-    }
+  const deleteRow = (id: string) => {
+    setEntries(entries.filter((e: any) => e.id !== id));
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <button
-            onClick={onBack}
-            className="text-gray-600 hover:text-gray-900 mb-4 flex items-center gap-2"
-          >
-            ← Voltar
-          </button>
-          
-          <h1 className="text-3xl font-bold text-secondary-900 mb-4">
-            Fluxo de Caixa
-          </h1>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nome da Análise *
-              </label>
-              <input
-                type="text"
-                value={sessionName}
-                onChange={(e) => setSessionName(e.target.value)}
-                placeholder="Ex: Janeiro 2024"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mês
-              </label>
-              <select
-                value={month}
-                onChange={(e) => setMonth(parseInt(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                {[...Array(12)].map((_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {new Date(2024, i).toLocaleDateString('pt-BR', { month: 'long' })}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ano
-              </label>
-              <input
-                type="number"
-                value={year}
-                onChange={(e) => setYear(parseInt(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Seções de Entrada e Saída */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-bold text-primary-600 mb-4 border-b-2 border-primary-500 pb-2">
-            💰 Entradas
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <InputField label="Salário" value={data.salario} onChange={(v) => handleChange('salario', v)} />
-            <InputField label="Receitas de Vendas" value={data.receitasVendas} onChange={(v) => handleChange('receitasVendas', v)} />
-            <InputField label="Rendas Extras" value={data.rendasExtras} onChange={(v) => handleChange('rendasExtras', v)} />
-            <InputField label="Outras Entradas" value={data.outrasEntradas} onChange={(v) => handleChange('outrasEntradas', v)} />
-          </div>
-          <div className="mt-4 p-4 bg-green-50 rounded-lg">
-            <p className="text-lg font-bold text-green-700">
-              Total de Entradas: {formatCurrency(calculated.totalEntradas || 0)}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-bold text-red-600 mb-4 border-b-2 border-red-500 pb-2">
-            🏠 Despesas Fixas
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <InputField label="Aluguel/Financiamento" value={data.aluguel} onChange={(v) => handleChange('aluguel', v)} />
-            <InputField label="Condomínio" value={data.condominio} onChange={(v) => handleChange('condominio', v)} />
-            <InputField label="Energia Elétrica" value={data.energia} onChange={(v) => handleChange('energia', v)} />
-            <InputField label="Água" value={data.agua} onChange={(v) => handleChange('agua', v)} />
-            <InputField label="Internet" value={data.internet} onChange={(v) => handleChange('internet', v)} />
-            <InputField label="Mensalidades" value={data.mensalidades} onChange={(v) => handleChange('mensalidades', v)} />
-          </div>
-          <div className="mt-4 p-4 bg-red-50 rounded-lg">
-            <p className="text-lg font-bold text-red-700">
-              Total de Despesas Fixas: {formatCurrency(calculated.totalDespesasFixas || 0)}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-bold text-orange-600 mb-4 border-b-2 border-orange-500 pb-2">
-            🛒 Despesas Variáveis
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <InputField label="Supermercado/Alimentação" value={data.supermercado} onChange={(v) => handleChange('supermercado', v)} />
-            <InputField label="Combustível/Transporte" value={data.combustivel} onChange={(v) => handleChange('combustivel', v)} />
-            <InputField label="Saúde/Farmácia" value={data.saude} onChange={(v) => handleChange('saude', v)} />
-            <InputField label="Vestuário" value={data.vestuario} onChange={(v) => handleChange('vestuario', v)} />
-            <InputField label="Lazer/Entretenimento" value={data.lazer} onChange={(v) => handleChange('lazer', v)} />
-            <InputField label="Outras Despesas" value={data.outrasVariaveis} onChange={(v) => handleChange('outrasVariaveis', v)} />
-          </div>
-          <div className="mt-4 p-4 bg-orange-50 rounded-lg">
-            <p className="text-lg font-bold text-orange-700">
-              Total de Despesas Variáveis: {formatCurrency(calculated.totalDespesasVariaveis || 0)}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-secondary-900 to-secondary-800 rounded-xl shadow-lg p-6 mb-6 text-white">
-          <h2 className="text-2xl font-bold mb-4">📊 Resumo</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-lg">Total de Entradas:</span>
-              <span className="text-xl font-bold text-green-300">{formatCurrency(calculated.totalEntradas || 0)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-lg">Total de Saídas:</span>
-              <span className="text-xl font-bold text-red-300">{formatCurrency(calculated.totalSaidas || 0)}</span>
-            </div>
-            <div className="h-px bg-white/20"></div>
-            <div className="flex justify-between items-center">
-              <span className="text-xl font-bold">Saldo:</span>
-              <span className={`text-2xl font-bold ${(calculated.saldo || 0) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                {formatCurrency(calculated.saldo || 0)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-          <button
-            onClick={onBack}
-            className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Salvando...' : (editSession ? 'Atualizar Análise' : 'Salvar Análise')}
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Header Fixo e Responsivo */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-[#ff6b35] transition-colors uppercase text-xs font-bold tracking-widest">
+          <ArrowLeft size={16} /> Voltar ao Painel
+        </button>
+        <div className="flex gap-3">
+          <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#ff6b35] text-white px-8 py-3 font-black uppercase tracking-widest text-sm hover:bg-[#e85a2a] transition-all">
+            <Save size={18} /> Salvar Análise
           </button>
         </div>
       </div>
-    </div>
-  );
-}
 
-function InputField({ label, value, onChange }: { label: string; value: number; onChange: (value: string) => void }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label}
-      </label>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-        <input
-          type="number"
-          step="0.01"
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          placeholder="0,00"
-        />
+      {/* Resumo de Calculos em Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-[#111] p-6 border-l-2 border-emerald-500">
+          <p className="text-xs text-slate-500 uppercase font-bold mb-1">Entradas</p>
+          <p className="text-2xl font-black text-white">R$ {totals.income.toLocaleString('pt-BR')}</p>
+        </div>
+        <div className="bg-[#111] p-6 border-l-2 border-red-500">
+          <p className="text-xs text-slate-500 uppercase font-bold mb-1">Saídas</p>
+          <p className="text-2xl font-black text-white">R$ {totals.expense.toLocaleString('pt-BR')}</p>
+        </div>
+        <div className="bg-[#111] p-6 border-l-2 border-[#ff6b35]">
+          <p className="text-xs text-slate-500 uppercase font-bold mb-1">Saldo Líquido</p>
+          <p className="text-2xl font-black text-[#ff6b35]">R$ {totals.balance.toLocaleString('pt-BR')}</p>
+        </div>
+      </div>
+
+      {/* Seção de Lançamentos Responsiva */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Coluna de Entradas */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-2">
+              <ArrowUpCircle className="text-emerald-500" /> Receitas
+            </h3>
+            <button onClick={() => addRow('income')} className="p-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all">
+              <Plus size={20} />
+            </button>
+          </div>
+          {entries.filter((e:any) => e.type === 'income').map((entry:any) => (
+            <div key={entry.id} className="flex gap-2 animate-in slide-in-from-left-2 duration-300">
+              <input 
+                type="text" 
+                placeholder="Descrição"
+                value={entry.description}
+                onChange={(e) => updateRow(entry.id, 'description', e.target.value)}
+                className="flex-1 bg-[#111] border border-white/5 p-3 text-sm focus:border-emerald-500 outline-none transition-all"
+              />
+              <input 
+                type="number" 
+                placeholder="Valor"
+                value={entry.value || ''}
+                onChange={(e) => updateRow(entry.id, 'value', e.target.value)}
+                className="w-24 md:w-32 bg-[#111] border border-white/5 p-3 text-sm focus:border-emerald-500 outline-none transition-all text-right"
+              />
+              <button onClick={() => deleteRow(entry.id)} className="p-3 text-slate-600 hover:text-red-500 transition-colors">
+                <Trash2 size={18} />
+              </button>
+            </div>
+          ))}
+        </section>
+
+        {/* Coluna de Saídas */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-2">
+              <ArrowDownCircle className="text-red-500" /> Despesas
+            </h3>
+            <button onClick={() => addRow('expense')} className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all">
+              <Plus size={20} />
+            </button>
+          </div>
+          {entries.filter((e:any) => e.type === 'expense').map((entry:any) => (
+            <div key={entry.id} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
+              <input 
+                type="text" 
+                placeholder="Descrição"
+                value={entry.description}
+                onChange={(e) => updateRow(entry.id, 'description', e.target.value)}
+                className="flex-1 bg-[#111] border border-white/5 p-3 text-sm focus:border-red-500 outline-none transition-all"
+              />
+              <input 
+                type="number" 
+                placeholder="Valor"
+                value={entry.value || ''}
+                onChange={(e) => updateRow(entry.id, 'value', e.target.value)}
+                className="w-24 md:w-32 bg-[#111] border border-white/5 p-3 text-sm focus:border-red-500 outline-none transition-all text-right"
+              />
+              <button onClick={() => deleteRow(entry.id)} className="p-3 text-slate-600 hover:text-red-500 transition-colors">
+                <Trash2 size={18} />
+              </button>
+            </div>
+          ))}
+        </section>
+
       </div>
     </div>
   );

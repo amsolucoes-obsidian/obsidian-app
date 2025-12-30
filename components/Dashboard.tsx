@@ -16,83 +16,87 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  // Dados fictícios para o layout (serão substituídos pelos do Supabase)
+  // Dados sincronizados com a identidade visual Obsidian
   const stats = [
-    { label: 'Total de Análises', value: '12', icon: BarChart3, color: 'text-blue-400' },
-    { label: 'Fluxo de Caixa', value: '8', icon: Wallet, color: 'text-emerald-400' },
-    { label: 'Balanço Patrimonial', value: '4', icon: Building2, color: 'text-purple-400' },
-    { label: 'Último Saldo', value: 'R$ 14.250', icon: TrendingUp, color: 'text-blue-400' },
+    { label: 'Total de Análises', value: '12', icon: BarChart3, color: 'text-[#ff6b35]' },
+    { label: 'Fluxo de Caixa', value: '8', icon: Wallet, color: 'text-[#ff6b35]' },
+    { label: 'Balanço Patrimonial', value: '4', icon: Building2, color: 'text-[#ff6b35]' },
+    { label: 'Último Saldo', value: 'R$ 14.250', icon: TrendingUp, color: 'text-emerald-400' },
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      {/* Cabeçalho */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      
+      {/* Cabeçalho Responsivo */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-l-4 border-[#ff6b35] pl-6">
         <div>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight">Dashboard</h1>
-          <p className="text-slate-400 mt-1">Bem-vindo ao seu controle financeiro Obsidian.</p>
+          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-poppins">
+            Dashboard
+          </h1>
+          <p className="text-slate-500 mt-2 font-inter uppercase tracking-widest text-xs md:text-sm">
+            Seu controle financeiro começa aqui
+          </p>
         </div>
+        
+        {/* Botão Principal com Cor Obsidian */}
         <button 
           onClick={() => onNavigate('new-analysis')}
-          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+          className="flex items-center justify-center gap-3 bg-white hover:bg-[#ff6b35] text-black hover:text-white px-8 py-4 font-black transition-all duration-300 uppercase tracking-widest text-sm active:scale-95 shadow-xl"
         >
           <PlusCircle size={20} />
           Nova Análise
         </button>
       </div>
 
-      {/* Grid de Estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Grid de Estatísticas Responsivo: 1 col mobile / 2 col tablet / 4 col desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {stats.map((stat, index) => (
-          <div key={index} className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-2xl hover:bg-slate-800 transition-colors group">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-xl bg-slate-900/50 ${stat.color}`}>
-                <stat.icon size={24} />
+          <div 
+            key={index} 
+            className="bg-[#111] border border-white/5 p-6 md:p-8 hover:border-[#ff6b35]/30 transition-all duration-500 group relative overflow-hidden"
+          >
+            <div className="flex justify-between items-start mb-6 relative z-10">
+              <div className={`p-4 bg-white/5 ${stat.color} transition-colors duration-500 group-hover:bg-[#ff6b35]/10`}>
+                <stat.icon size={28} />
               </div>
-              <ArrowUpRight className="text-slate-600 group-hover:text-slate-400 transition-colors" size={18} />
+              <ArrowUpRight className="text-slate-700 group-hover:text-[#ff6b35] transition-colors" size={20} />
             </div>
-            <p className="text-slate-400 text-sm font-medium">{stat.label}</p>
-            <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
+            
+            <div className="relative z-10">
+              <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em]">{stat.label}</p>
+              <p className="text-3xl md:text-4xl font-black text-white mt-2 tracking-tighter">
+                {stat.value}
+              </p>
+            </div>
+
+            {/* Detalhe visual de fundo */}
+            <div className="absolute -right-4 -bottom-4 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
+               <stat.icon size={120} />
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Ações Rápidas / Seções Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Ações Rápidas em Grid Duplo */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        
+        {/* Card Histórico */}
         <button 
           onClick={() => onNavigate('history')}
-          className="group relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-8 rounded-3xl text-left transition-all hover:border-blue-500/50"
+          className="group relative overflow-hidden bg-[#111] border border-white/5 p-8 md:p-12 text-left transition-all duration-500 hover:border-[#ff6b35]/50"
         >
           <div className="relative z-10">
-            <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 mb-6 group-hover:scale-110 transition-transform">
-              <History size={28} />
+            <div className="w-14 h-14 bg-white/5 flex items-center justify-center text-white mb-8 group-hover:bg-[#ff6b35] group-hover:text-white transition-all duration-500">
+              <History size={32} />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Histórico de Análises</h3>
-            <p className="text-slate-400 leading-relaxed">Acesse todos os seus lançamentos passados e acompanhe a evolução financeira.</p>
-          </div>
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            <History size={120} />
+            <h3 className="text-2xl font-black text-white mb-3 tracking-tight uppercase font-poppins">Histórico</h3>
+            <p className="text-slate-500 leading-relaxed font-inter text-sm md:text-base max-w-xs">
+              Acesse lançamentos passados e monitore sua evolução financeira cristalina.
+            </p>
           </div>
         </button>
 
+        {/* Card Relatórios */}
         <button 
           onClick={() => onNavigate('report')}
-          className="group relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-8 rounded-3xl text-left transition-all hover:border-emerald-500/50"
-        >
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6 group-hover:scale-110 transition-transform">
-              <BarChart3 size={28} />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Relatórios Consolidados</h3>
-            <p className="text-slate-400 leading-relaxed">Visualize gráficos anuais e métricas detalhadas do seu balanço patrimonial.</p>
-          </div>
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            <BarChart3 size={120} />
-          </div>
-        </button>
-      </div>
-    </div>
-  );
-};
-
-export default Dashboard;
+          className="group relative overflow-hidden bg-[#111] border border-white/5 p-8 md:p-12 text-left transition-all duration-500 hover:border-[#ff6b35]/50"
