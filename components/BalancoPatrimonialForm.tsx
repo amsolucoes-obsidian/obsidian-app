@@ -26,13 +26,11 @@ const INITIAL_DATA: BalancoPatrimonialData = {
 };
 
 function toMonthString(m: number) {
-  // salva no banco como "01".."12"
   const n = Number(m) || 1;
   return String(n).padStart(2, '0');
 }
 
 function fromMonthValue(value: any) {
-  // editSession.month pode vir como "01" ou 1
   const n = typeof value === 'string' ? parseInt(value, 10) : Number(value);
   return Number.isFinite(n) && n >= 1 && n <= 12 ? n : new Date().getMonth() + 1;
 }
@@ -44,16 +42,14 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
     editSession ? ((editSession as any).data as BalancoPatrimonialData) : INITIAL_DATA
   );
 
-  // compatível com editSession.name OU editSession.session_name
   const [sessionName, setSessionName] = useState(
-    (editSession as any)?.name || (editSession as any)?.session_name || ''
+    (editSession as any)?.session_name || (editSession as any)?.name || ''
   );
 
   const [month, setMonth] = useState(fromMonthValue((editSession as any)?.month));
   const [year, setYear] = useState((editSession as any)?.year || new Date().getFullYear());
   const [saving, setSaving] = useState(false);
 
-  // Calcular totais automaticamente
   const calculated = calculateBalanco(data);
 
   const handleChange = (field: keyof BalancoPatrimonialData, value: string) => {
@@ -69,49 +65,38 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
 
     setSaving(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
         toast.error('Você precisa estar logado');
         return;
       }
 
-      // ⚠️ Cast seguro pra não quebrar build se o Database ainda não tiver os types certinhos
-      const sb = supabase as any;
+      // ✅ Casting agressivo para 'any' para evitar erro de build 'never'
+      const table = (supabase.from('financial_sessions') as any);
+
+      const payload = {
+        session_name: sessionName,
+        month: month, // Usando número para manter padrão com Fluxo de Caixa
+        year: year,
+        module_type: 'balanco-patrimonial',
+        data: calculated,
+        updated_at: new Date().toISOString(),
+      };
 
       if (editSession) {
-        // Atualizar sessão existente
-        const { error } = await sb
-          .from('financial_sessions')
-          .update({
-            // schema mais comum: "name" (não "session_name")
-            name: sessionName,
-            month: toMonthString(month),
-            year,
-            // schema mais comum: 'balanco_patrimonial' (underscore)
-            module_type: 'balanco_patrimonial',
-            data: calculated,
-            // se sua tabela tiver updated_at, beleza; se não tiver, remova essa linha
-            updated_at: new Date().toISOString(),
-          })
+        const { error } = await table
+          .update(payload as any)
           .eq('id', (editSession as any).id);
 
         if (error) throw error;
         toast.success('Análise atualizada com sucesso!');
       } else {
-        // Criar nova sessão
-        const { error } = await sb.from('financial_sessions').insert({
+        const { error } = await table.insert({
+          ...payload,
           user_id: session.user.id,
-          name: sessionName,
-          module_type: 'balanco_patrimonial',
-          month: toMonthString(month),
-          year,
-          data: calculated,
-          // se sua tabela tiver is_closed (boolean), mantém; se não tiver, pode remover
-          is_closed: false,
-        });
+          status: 'completed',
+        } as any);
 
         if (error) throw error;
         toast.success('Análise salva com sucesso!');
@@ -130,7 +115,6 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <button onClick={onBack} className="text-gray-600 hover:text-gray-900 mb-4 flex items-center gap-2">
             ← Voltar
@@ -177,52 +161,32 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
           </div>
         </div>
 
-        {/* Ativos Líquidos */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-green-600 mb-4 border-b-2 border-green-500 pb-2">💵 Ativos Líquidos</h2>
-
           <div className="grid md:grid-cols-2 gap-4">
             <InputField label="Caixa e Banco" value={data.caixaBanco} onChange={(v) => handleChange('caixaBanco', v)} />
-            <InputField
-              label="Investimentos Líquidos"
-              value={data.investimentosLiquidos}
-              onChange={(v) => handleChange('investimentosLiquidos', v)}
-            />
-            <InputField
-              label="Contas a Receber"
-              value={data.contasReceber}
-              onChange={(v) => handleChange('contasReceber', v)}
-            />
+            <InputField label="Investimentos Líquidos" value={data.investimentosLiquidos} onChange={(v) => handleChange('investimentosLiquidos', v)} />
+            <InputField label="Contas a Receber" value={data.contasReceber} onChange={(v) => handleChange('contasReceber', v)} />
           </div>
-
           <div className="mt-4 p-4 bg-green-50 rounded-lg">
-            <p className="text-lg font-bold text-green-700">
-              Total de Ativos Líquidos: {formatCurrency(calculated.totalAtivosLiquidos || 0)}
-            </p>
+            <p className="text-lg font-bold text-green-700">Total de Ativos Líquidos: {formatCurrency(calculated.totalAtivosLiquidos || 0)}</p>
           </div>
         </div>
 
-        {/* Ativos Fixos */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-blue-600 mb-4 border-b-2 border-blue-500 pb-2">🏠 Ativos Fixos</h2>
-
           <div className="grid md:grid-cols-2 gap-4">
             <InputField label="Imóveis" value={data.imoveis} onChange={(v) => handleChange('imoveis', v)} />
             <InputField label="Veículos" value={data.veiculos} onChange={(v) => handleChange('veiculos', v)} />
             <InputField label="Outros Ativos" value={data.outrosAtivos} onChange={(v) => handleChange('outrosAtivos', v)} />
           </div>
-
           <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-lg font-bold text-blue-700">
-              Total de Ativos Fixos: {formatCurrency(calculated.totalAtivosFixos || 0)}
-            </p>
+            <p className="text-lg font-bold text-blue-700">Total de Ativos Fixos: {formatCurrency(calculated.totalAtivosFixos || 0)}</p>
           </div>
         </div>
 
-        {/* Passivos */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-red-600 mb-4 border-b-2 border-red-500 pb-2">💳 Passivos (Dívidas)</h2>
-
           <div className="grid md:grid-cols-2 gap-4">
             <InputField label="Empréstimos" value={data.emprestimos} onChange={(v) => handleChange('emprestimos', v)} />
             <InputField label="Financiamentos" value={data.financiamentos} onChange={(v) => handleChange('financiamentos', v)} />
@@ -230,18 +194,13 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
             <InputField label="Contas a Pagar" value={data.contasPagar} onChange={(v) => handleChange('contasPagar', v)} />
             <InputField label="Outros Passivos" value={data.outrosPassivos} onChange={(v) => handleChange('outrosPassivos', v)} />
           </div>
-
           <div className="mt-4 p-4 bg-red-50 rounded-lg">
-            <p className="text-lg font-bold text-red-700">
-              Total de Passivos: {formatCurrency(calculated.totalPassivos || 0)}
-            </p>
+            <p className="text-lg font-bold text-red-700">Total de Passivos: {formatCurrency(calculated.totalPassivos || 0)}</p>
           </div>
         </div>
 
-        {/* Resumo */}
         <div className="bg-gradient-to-br from-secondary-900 to-secondary-800 rounded-xl shadow-lg p-6 mb-6 text-white">
           <h2 className="text-2xl font-bold mb-4">📊 Resumo Patrimonial</h2>
-
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-lg">Total de Ativos:</span>
@@ -261,19 +220,9 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
           </div>
         </div>
 
-        {/* Botões */}
         <div className="flex gap-4">
-          <button
-            onClick={onBack}
-            className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <button onClick={onBack} className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">Cancelar</button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">
             {saving ? 'Salvando...' : editSession ? 'Atualizar Análise' : 'Salvar Análise'}
           </button>
         </div>
@@ -282,15 +231,7 @@ export default function BalancoPatrimonialForm({ onBack, editSession }: BalancoP
   );
 }
 
-function InputField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: string) => void;
-}) {
+function InputField({ label, value, onChange }: { label: string; value: number; onChange: (value: string) => void }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
