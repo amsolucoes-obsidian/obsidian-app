@@ -52,11 +52,8 @@ export default function AppPage() {
 
   const checkAuth = async () => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
 
-      // Se não houver sessão, redireciona para a nova página de login
       if (!session) {
         router.push('/login');
         return;
@@ -64,7 +61,7 @@ export default function AppPage() {
 
       setUser(session.user);
 
-      // ✅ Verifica status da assinatura via API client-safe com casting para evitar erro 'never'
+      // Verificação de assinatura com casting para evitar erro de build
       const status = await getSubscriptionStatusClient(session.user.id);
       const statusAny = status as any;
       const isActive = Boolean(statusAny?.isActive);
@@ -79,10 +76,6 @@ export default function AppPage() {
         } else {
           setAppState('welcome');
         }
-      } else {
-        // Se a assinatura não estiver ativa, o estado permanece 'loading' 
-        // mas o componente SubscriptionBlockedScreen será renderizado abaixo
-        setLoading(false);
       }
     } catch (error) {
       console.error('Error checking auth:', error);
@@ -117,6 +110,81 @@ export default function AppPage() {
     setAppState(module);
   };
 
+  // Renderização condicional de carregamento
   if (loading) {
     return (
-      <div className="min-h-screen bg-secondary-
+      <div className="min-h-screen bg-secondary-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg font-medium">Carregando Obsidian...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se o usuário está logado mas sem assinatura ativa
+  if (user && !isSubscriptionActive) {
+    return <SubscriptionBlockedScreen />;
+  }
+
+  // Máquina de estados do App
+  switch (appState) {
+    case 'welcome':
+      return <WelcomeScreen onStart={handleStart} />;
+
+    case 'dashboard':
+      return <Dashboard onNavigate={handleDashboardNavigate} />;
+
+    case 'module-selector':
+      return <ModuleSelector onSelectModule={handleSelectModule} />;
+
+    case 'fluxo-caixa':
+      return (
+        <FluxoCaixaForm
+          onBack={() => {
+            setEditSession(null);
+            setAppState('dashboard');
+          }}
+          editSession={editSession}
+        />
+      );
+
+    case 'balanco-patrimonial':
+      return (
+        <BalancoPatrimonialForm
+          onBack={() => {
+            setEditSession(null);
+            setAppState('dashboard');
+          }}
+          editSession={editSession}
+        />
+      );
+
+    case 'history':
+      return (
+        <SessionHistory
+          onBack={() => setAppState('dashboard')}
+          onEdit={(session) => {
+            setEditSession(session);
+            const s = session as any;
+            setAppState(s.module_type === 'fluxo-caixa' ? 'fluxo-caixa' : 'balanco-patrimonial');
+          }}
+        />
+      );
+
+    case 'report-selector':
+      return <ReportSelector onSelect={handleReportSelect} onBack={() => setAppState('dashboard')} />;
+
+    case 'report':
+      return (
+        <ConsolidatedReport
+          year={reportConfig.year}
+          moduleType={reportConfig.moduleType}
+          onBack={() => setAppState('dashboard')}
+        />
+      );
+
+    default:
+      return null;
+  }
+}
