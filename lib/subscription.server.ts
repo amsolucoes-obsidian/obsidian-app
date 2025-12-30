@@ -4,21 +4,21 @@ export async function checkSubscriptionStatusServer(userId: string) {
   const supabase = createSupabaseAdmin();
 
   try {
-    // 1. Forçamos a tabela como 'any'
-    const { data, error } = await (supabase
+    // 1. Buscamos como 'any'
+    const { data, error }: any = await (supabase
       .from('subscriptions') as any)
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    // 2. Criamos uma constante 'subscription' explicitamente como 'any'
-    const subscription: any = data;
-
-    if (error || !subscription) {
+    if (error || !data) {
       return { isActive: false, subscription: null, reason: 'Assinatura não encontrada' };
     }
 
-    // 3. Agora o TypeScript permitirá ler .status sem erro de 'never'
+    // 2. Criamos um novo objeto limpo para "quebrar" a inferência do TypeScript
+    const subscription = JSON.parse(JSON.stringify(data));
+
+    // 3. Agora acessamos as propriedades sem que o TS consiga reclamar de 'never'
     if (subscription.status !== 'active') {
       return { isActive: false, subscription, reason: 'Assinatura inativa' };
     }

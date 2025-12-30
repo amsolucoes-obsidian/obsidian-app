@@ -32,8 +32,8 @@ function getHotmartSubscriptionId(data: any) {
 }
 
 export async function POST(request: NextRequest) {
-  // ✅ tipagem “any” aqui evita o erro de "never" no build
-  const supabase = createSupabaseAdmin() as any;
+  // ✅ Usamos createSupabaseAdmin normalmente
+  const supabase = createSupabaseAdmin();
 
   try {
     const expectedToken = process.env.HOTMART_WEBHOOK_SECRET;
@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
     const hotmartPurchaseId = getHotmartPurchaseId(data);
     const hotmartSubscriptionId = getHotmartSubscriptionId(data);
 
-    // 1) Registra evento (log)
-    const { data: insertedEvent, error: insertError } = await supabase
-      .from('hotmart_events')
+    // 1) Registra evento (log) - Corrigido com "as any" para evitar erro de build
+    const { data: insertedEvent, error: insertError } = await (supabase
+      .from('hotmart_events') as any)
       .insert({
         event_type: eventType,
         event_data: body,
@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('Error inserting hotmart_events:', insertError);
-      // não bloqueia o processamento
     }
 
     // 2) Processa evento
@@ -86,10 +85,10 @@ export async function POST(request: NextRequest) {
       : { processed: false, error_message: result.error };
 
     if (insertedEvent?.id) {
-      await supabase.from('hotmart_events').update(updatePayload).eq('id', insertedEvent.id);
+      await (supabase.from('hotmart_events') as any).update(updatePayload).eq('id', insertedEvent.id);
     } else if (hotmartPurchaseId) {
-      await supabase
-        .from('hotmart_events')
+      await (supabase
+        .from('hotmart_events') as any)
         .update(updatePayload)
         .eq('hotmart_purchase_id', hotmartPurchaseId);
     }
@@ -117,7 +116,6 @@ async function processHotmartEvent(
     const buyerEmail = getBuyerEmail(data);
     if (!buyerEmail) return { success: false, error: 'Buyer email not found in webhook data' };
 
-    // busca userId pelo email via Admin API (paginado)
     const target = buyerEmail.toLowerCase();
     const perPage = 200;
 
@@ -177,11 +175,9 @@ async function processHotmartEvent(
   }
 }
 
-// (Opcional) GET pra teste rápido
 export async function GET() {
   return NextResponse.json({
     status: 'Hotmart webhook endpoint is running',
     timestamp: new Date().toISOString(),
   });
 }
-
