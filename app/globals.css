@@ -1,6 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  --color-border: var(--border);
+}
+
+:root {
+  /* OBSIDIAN - Paleta de Cores Final */
+  --background: #0a0a0a; /* Preto Profundo */
+  --foreground: #ffffff; /* Branco Puro */
+  --primary: #ff6b35;    /* Laranja Queimado */
+  --card: #111111;       /* Cinza quase preto para cards */
+  --border: rgba(255, 255, 255, 0.05); /* Bordas sutis */
+  --radius: 0px;         /* Visual brutalista sem bordas arredondadas */
+}
 
 @layer base {
   * {
@@ -8,123 +25,71 @@
   }
   
   body {
-    @apply bg-white text-secondary-900;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground antialiased selection:bg-primary/30;
+    font-family: 'Inter', sans-serif; /* */
+    font-size: 16px;
+    line-height: 1.6;
   }
   
-  /* Scrollbar customizado */
+  /* Ajuste de escala para Desktop */
+  @media (min-width: 768px) {
+    body { font-size: 18px; }
+  }
+
+  h1, h2, h3 {
+    font-family: 'Poppins', sans-serif;
+    @apply font-black uppercase tracking-tighter; /* */
+  }
+
+  /* Custom Scrollbar - Versão Dark Luxo */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
   }
-  
   ::-webkit-scrollbar-track {
-    @apply bg-gray-100;
+    @apply bg-background;
   }
-  
   ::-webkit-scrollbar-thumb {
-    @apply bg-primary-500 rounded-full;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-primary-600;
+    @apply bg-white/10 hover:bg-primary transition-colors;
   }
 }
 
 @layer components {
-  /* Botões */
+  /* Botões Premium */
   .btn-primary {
-    @apply px-6 py-3 bg-primary-500 text-white font-semibold rounded-lg hover:bg-primary-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0;
+    @apply px-10 py-4 bg-white text-black font-black uppercase tracking-widest text-sm 
+           hover:bg-primary hover:text-white transition-all duration-300 active:scale-95;
   }
   
-  .btn-secondary {
-    @apply px-6 py-3 bg-secondary-900 text-white font-semibold rounded-lg hover:bg-secondary-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0;
+  /* Efeito de Vidro para Cards */
+  .card-obsidian {
+    @apply bg-card border border-border p-6 md:p-10 transition-all duration-500 
+           hover:border-primary/40 relative overflow-hidden;
   }
-  
-  .btn-outline {
-    @apply px-6 py-3 border-2 border-primary-500 text-primary-500 font-semibold rounded-lg hover:bg-primary-50 transition-all;
+
+  /* Inputs Dark */
+  .input-obsidian {
+    @apply w-full bg-background border border-border px-4 py-4 text-white 
+           focus:border-primary focus:outline-none transition-all font-inter;
   }
-  
-  /* Inputs */
-  .input-field {
-    @apply w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-primary-500 focus:outline-none transition-colors text-base;
-  }
-  
-  /* Cards */
-  .card {
-    @apply bg-white rounded-xl shadow-lg p-6 border border-gray-200;
-  }
-  
-  .card-hover {
-    @apply card hover:shadow-xl transition-all transform hover:-translate-y-1;
-  }
-  
-  /* Container */
+
   .container-app {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    @apply max-w-7xl mx-auto px-4 sm:px-8 lg:px-12; /* */
   }
 }
 
 @layer utilities {
-  /* Animações */
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-in-out;
+  .animate-obsidian-in {
+    animation: obsidianIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  
-  @keyframes fadeIn {
+
+  @keyframes obsidianIn {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(20px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
     }
-  }
-  
-  .animate-slide-up {
-    animation: slideUp 0.4s ease-out;
-  }
-  
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(30px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  /* Touch-friendly */
-  .touch-target {
-    @apply min-h-[44px] min-w-[44px];
-  }
-  
-  /* Text truncate */
-  .text-truncate {
-    @apply overflow-hidden text-ellipsis whitespace-nowrap;
-  }
-}
-
-/* PWA Styles */
-@media (display-mode: standalone) {
-  body {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
-
-/* Mobile optimizations */
-@media (max-width: 640px) {
-  body {
-    font-size: 16px; /* Previne zoom automático no iOS */
-  }
-  
-  input,
-  textarea,
-  select {
-    font-size: 16px; /* Previne zoom automático no iOS */
   }
 }
