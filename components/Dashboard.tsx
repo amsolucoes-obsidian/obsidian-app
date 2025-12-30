@@ -1,235 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createSupabaseClient } from '@/lib/supabase.client';
-import { FinancialSession, FluxoCaixaData, BalancoPatrimonialData } from '@/types/financial';
-import { formatCurrency } from '@/hooks/useCalculations';
+import React from 'react';
+import { 
+  PlusCircle, 
+  History, 
+  BarChart3, 
+  TrendingUp, 
+  Wallet, 
+  Building2, 
+  ArrowUpRight 
+} from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (destination: 'new-analysis' | 'history' | 'report') => void;
 }
 
-export default function Dashboard({ onNavigate }: DashboardProps) {
-  const supabase = createSupabaseClient();
-
-  const [stats, setStats] = useState({
-    totalSessions: 0,
-    fluxoCaixaCount: 0,
-    balancoCount: 0,
-    lastSaldo: 0,
-    lastPatrimonio: 0,
-  });
-
-  const [recentSessions, setRecentSessions] = useState<FinancialSession[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      // ✅ não travar loading se não tiver sessão
-      if (!session) {
-        setRecentSessions([]);
-        setStats({
-          totalSessions: 0,
-          fluxoCaixaCount: 0,
-          balancoCount: 0,
-          lastSaldo: 0,
-          lastPatrimonio: 0,
-        });
-        return;
-      }
-
-      // Carregar todas as sessões
-      const { data: sessions, error } = await supabase
-        .from('financial_sessions')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const allSessions: FinancialSession[] = (sessions as FinancialSession[]) || [];
-
-      // Calcular estatísticas
-      const fluxoSessions = allSessions.filter((s) => s.module_type === 'fluxo-caixa');
-      const balancoSessions = allSessions.filter((s) => s.module_type === 'balanco-patrimonial');
-
-      const lastFluxo = fluxoSessions[0];
-      const lastBalanco = balancoSessions[0];
-
-      const lastSaldo =
-        lastFluxo?.module_type === 'fluxo-caixa'
-          ? ((lastFluxo.data as FluxoCaixaData | undefined)?.saldo ?? 0)
-          : 0;
-
-      const lastPatrimonio =
-        lastBalanco?.module_type === 'balanco-patrimonial'
-          ? ((lastBalanco.data as BalancoPatrimonialData | undefined)?.patrimonioLiquido ?? 0)
-          : 0;
-
-      setStats({
-        totalSessions: allSessions.length,
-        fluxoCaixaCount: fluxoSessions.length,
-        balancoCount: balancoSessions.length,
-        lastSaldo,
-        lastPatrimonio,
-      });
-
-      setRecentSessions(allSessions.slice(0, 3));
-    } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+  // Dados fictícios para o layout (serão substituídos pelos do Supabase)
+  const stats = [
+    { label: 'Total de Análises', value: '12', icon: BarChart3, color: 'text-blue-400' },
+    { label: 'Fluxo de Caixa', value: '8', icon: Wallet, color: 'text-emerald-400' },
+    { label: 'Balanço Patrimonial', value: '4', icon: Building2, color: 'text-purple-400' },
+    { label: 'Último Saldo', value: 'R$ 14.250', icon: TrendingUp, color: 'text-blue-400' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-secondary-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Visão geral das suas finanças</p>
+    <div className="space-y-8 animate-in fade-in duration-700">
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-extrabold text-white tracking-tight">Dashboard</h1>
+          <p className="text-slate-400 mt-1">Bem-vindo ao seu controle financeiro Obsidian.</p>
         </div>
+        <button 
+          onClick={() => onNavigate('new-analysis')}
+          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+        >
+          <PlusCircle size={20} />
+          Nova Análise
+        </button>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard icon="📊" title="Total de Análises" value={stats.totalSessions.toString()} subtitle="análises criadas" />
-          <StatCard icon="💰" title="Fluxo de Caixa" value={stats.fluxoCaixaCount.toString()} subtitle="análises de fluxo" />
-          <StatCard icon="🏦" title="Balanço Patrimonial" value={stats.balancoCount.toString()} subtitle="análises de balanço" />
-          <StatCard
-            icon="💵"
-            title="Último Saldo"
-            value={formatCurrency(stats.lastSaldo)}
-            subtitle="fluxo de caixa"
-            valueColor={stats.lastSaldo >= 0 ? 'text-green-600' : 'text-red-600'}
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <h2 className="text-2xl font-bold text-secondary-900 mb-4">Ações Rápidas</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            <button
-              onClick={() => onNavigate('new-analysis')}
-              className="p-6 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all transform hover:scale-105 active:scale-95 text-left"
-            >
-              <div className="text-4xl mb-3">➕</div>
-              <h3 className="text-xl font-bold mb-2">Nova Análise</h3>
-              <p className="text-primary-100">Criar nova análise financeira</p>
-            </button>
-
-            <button
-              onClick={() => onNavigate('history')}
-              className="p-6 bg-gradient-to-br from-secondary-700 to-secondary-800 text-white rounded-xl hover:from-secondary-800 hover:to-secondary-900 transition-all transform hover:scale-105 active:scale-95 text-left"
-            >
-              <div className="text-4xl mb-3">📋</div>
-              <h3 className="text-xl font-bold mb-2">Ver Histórico</h3>
-              <p className="text-gray-300">Acessar análises anteriores</p>
-            </button>
-
-            <button
-              onClick={() => onNavigate('report')}
-              className="p-6 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 active:scale-95 text-left"
-            >
-              <div className="text-4xl mb-3">📊</div>
-              <h3 className="text-xl font-bold mb-2">Relatório Anual</h3>
-              <p className="text-blue-100">Ver gráficos e análises</p>
-            </button>
-          </div>
-        </div>
-
-        {/* Recent Sessions */}
-        {recentSessions.length > 0 && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-secondary-900 mb-4">Análises Recentes</h2>
-
-            <div className="space-y-4">
-              {recentSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div>
-                    <h3 className="font-bold text-secondary-900">{session.session_name || 'Análise'}</h3>
-                    <p className="text-sm text-gray-600">
-                      {session.module_type === 'fluxo-caixa' ? '💰 Fluxo de Caixa' : '🏦 Balanço Patrimonial'} •{' '}
-                      {new Date(session.created_at).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    {session.module_type === 'fluxo-caixa' ? (() => {
-                      const data = session.data as FluxoCaixaData | undefined;
-                      const saldo = data?.saldo ?? 0;
-
-                      return (
-                        <span className={`font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(saldo)}
-                        </span>
-                      );
-                    })() : (() => {
-                      const data = session.data as BalancoPatrimonialData | undefined;
-                      const patrimonio = data?.patrimonioLiquido ?? 0;
-
-                      return (
-                        <span className={`font-bold ${patrimonio >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(patrimonio)}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-              ))}
+      {/* Grid de Estatísticas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, index) => (
+          <div key={index} className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-2xl hover:bg-slate-800 transition-colors group">
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-3 rounded-xl bg-slate-900/50 ${stat.color}`}>
+                <stat.icon size={24} />
+              </div>
+              <ArrowUpRight className="text-slate-600 group-hover:text-slate-400 transition-colors" size={18} />
             </div>
+            <p className="text-slate-400 text-sm font-medium">{stat.label}</p>
+            <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
           </div>
-        )}
+        ))}
+      </div>
+
+      {/* Ações Rápidas / Seções Principais */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <button 
+          onClick={() => onNavigate('history')}
+          className="group relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-8 rounded-3xl text-left transition-all hover:border-blue-500/50"
+        >
+          <div className="relative z-10">
+            <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 mb-6 group-hover:scale-110 transition-transform">
+              <History size={28} />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Histórico de Análises</h3>
+            <p className="text-slate-400 leading-relaxed">Acesse todos os seus lançamentos passados e acompanhe a evolução financeira.</p>
+          </div>
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <History size={120} />
+          </div>
+        </button>
+
+        <button 
+          onClick={() => onNavigate('report')}
+          className="group relative overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 p-8 rounded-3xl text-left transition-all hover:border-emerald-500/50"
+        >
+          <div className="relative z-10">
+            <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6 group-hover:scale-110 transition-transform">
+              <BarChart3 size={28} />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Relatórios Consolidados</h3>
+            <p className="text-slate-400 leading-relaxed">Visualize gráficos anuais e métricas detalhadas do seu balanço patrimonial.</p>
+          </div>
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <BarChart3 size={120} />
+          </div>
+        </button>
       </div>
     </div>
   );
-}
+};
 
-function StatCard({
-  icon,
-  title,
-  value,
-  subtitle,
-  valueColor = 'text-secondary-900',
-}: {
-  icon: string;
-  title: string;
-  value: string;
-  subtitle: string;
-  valueColor?: string;
-}) {
-  return (
-    <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-      <div className="text-4xl mb-3">{icon}</div>
-      <h3 className="text-sm font-medium text-gray-600 mb-1">{title}</h3>
-      <p className={`text-2xl font-bold ${valueColor} mb-1`}>{value}</p>
-      <p className="text-xs text-gray-500">{subtitle}</p>
-    </div>
-  );
-}
-
+export default Dashboard;
