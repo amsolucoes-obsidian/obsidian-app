@@ -16,7 +16,6 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  // Dados sincronizados com a identidade visual Obsidian
   const stats = [
     { label: 'Total de Análises', value: '12', icon: BarChart3, color: 'text-[#ff6b35]' },
     { label: 'Fluxo de Caixa', value: '8', icon: Wallet, color: 'text-[#ff6b35]' },
@@ -27,7 +26,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* Cabeçalho Responsivo */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 border-l-4 border-[#ff6b35] pl-6">
         <div>
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-poppins">
@@ -38,7 +36,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </p>
         </div>
         
-        {/* Botão Principal com Cor Obsidian */}
         <button 
           onClick={() => onNavigate('new-analysis')}
           className="flex items-center justify-center gap-3 bg-white hover:bg-[#ff6b35] text-black hover:text-white px-8 py-4 font-black transition-all duration-300 uppercase tracking-widest text-sm active:scale-95 shadow-xl"
@@ -48,7 +45,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </button>
       </div>
 
-      {/* Grid de Estatísticas Responsivo: 1 col mobile / 2 col tablet / 4 col desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {stats.map((stat, index) => (
           <div 
@@ -69,7 +65,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </p>
             </div>
 
-            {/* Detalhe visual de fundo */}
             <div className="absolute -right-4 -bottom-4 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
                <stat.icon size={120} />
             </div>
@@ -77,26 +72,39 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         ))}
       </div>
 
-      {/* Ações Rápidas em Grid Duplo */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-        
-        {/* Card Histórico */}
         <button 
           onClick={() => onNavigate('history')}
           className="group relative overflow-hidden bg-[#111] border border-white/5 p-8 md:p-12 text-left transition-all duration-500 hover:border-[#ff6b35]/50"
         >
           <div className="relative z-10">
-            <div className="w-14 h-14 bg-white/5 flex items-center justify-center text-white mb-8 group-hover:bg-[#ff6b35] group-hover:text-white transition-all duration-500">
+            <div className="w-14 h-14 bg-white/5 flex items-center justify-center text-white mb-8 group-hover:bg-[#ff6b35] transition-all duration-500">
               <History size={32} />
             </div>
             <h3 className="text-2xl font-black text-white mb-3 tracking-tight uppercase font-poppins">Histórico</h3>
             <p className="text-slate-500 leading-relaxed font-inter text-sm md:text-base max-w-xs">
-              Acesse lançamentos passados e monitore sua evolução financeira cristalina.
+              Acesse lançamentos passados e monitore sua evolução financeira.
             </p>
           </div>
         </button>
 
-        {/* Card Relatórios */}
         <button 
           onClick={() => onNavigate('report')}
           className="group relative overflow-hidden bg-[#111] border border-white/5 p-8 md:p-12 text-left transition-all duration-500 hover:border-[#ff6b35]/50"
+        >
+          <div className="relative z-10">
+            <div className="w-14 h-14 bg-white/5 flex items-center justify-center text-white mb-8 group-hover:bg-[#ff6b35] transition-all duration-500">
+              <BarChart3 size={32} />
+            </div>
+            <h3 className="text-2xl font-black text-white mb-3 tracking-tight uppercase font-poppins">Relatórios</h3>
+            <p className="text-slate-500 leading-relaxed font-inter text-sm md:text-base max-w-xs">
+              Visualize métricas detalhadas e gráficos anuais do seu patrimônio.
+            </p>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
