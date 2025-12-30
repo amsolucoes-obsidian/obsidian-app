@@ -1,113 +1,80 @@
-// lib/subscription.server.ts
-import 'server-only';
-import { createSupabaseAdmin } from '@/lib/supabase.server';
+import { createSupabaseAdmin } from './supabase.server';
 
-export interface Subscription {
-  id: string;
-  user_id: string;
-  status: 'active' | 'inactive';
-  plan: string;
-  starts_at: string | null;
-  expires_at: string | null;
-  hotmart_subscription_id: string | null;
-  hotmart_purchase_id: string | null;
-}
+export async function checkSubscriptionStatusServer(userId: string) {
+  const supabase = createSupabaseAdmin();
 
-function getAdmin() {
-  return createSupabaseAdmin();
-}
+  try {
+    // 1. Forçamos a tabela como 'any'
+    const { data, error } = await (supabase
+      .from('subscriptions') as any)
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
-export async function checkSubscriptionStatusServer(userId: string): Promise<{
-  isActive: boolean;
-  subscription: Subscription | null;
-  reason?: string;
-}> {
-  const supabase = getAdmin();
+    // 2. Criamos uma constante 'subscription' explicitamente como 'any'
+    const subscription: any = data;
 
-  const { data: subscription, error } = await supabase
-    .from('subscriptions')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+    if (error || !subscription) {
+      return { isActive: false, subscription: null, reason: 'Assinatura não encontrada' };
+    }
 
-  if (error || !subscription) {
-    return { isActive: false, subscription: null, reason: 'Assinatura não encontrada' };
-  }
+    // 3. Agora o TypeScript permitirá ler .status sem erro de 'never'
+    if (subscription.status !== 'active') {
+      return { isActive: false, subscription, reason: 'Assinatura inativa' };
+    }
 
-  if (subscription.status !== 'active') {
-    return { isActive: false, subscription, reason: 'Assinatura inativa' };
-  }
+    const now = new Date();
+    const expiresAt = subscription.expires_at ? new Date(subscription.expires_at) : null;
 
-  if (subscription.expires_at) {
-    const expiresAt = new Date(subscription.expires_at);
-    if (expiresAt < new Date()) {
+    if (expiresAt && expiresAt < now) {
       return { isActive: false, subscription, reason: 'Assinatura expirada' };
     }
-  }
 
-  return { isActive: true, subscription };
+    return { isActive: true, subscription };
+  } catch (error) {
+    console.error('Error checking subscription status:', error);
+    return { isActive: false, subscription: null, reason: 'Erro interno' };
+  }
 }
 
-export async function upsertSubscription(
-  userId: string,
-  data: {
-    status: 'active' | 'inactive';
-    starts_at?: string;
-    expires_at?: string;
-    hotmart_subscription_id?: string;
-    hotmart_purchase_id?: string;
-  }
-) {
-  const supabase = getAdmin();
+export async function activateSubscription(userId: string, details: any) {
+  const supabase = createSupabaseAdmin();
+  const table = supabase.from('subscriptions') as any;
 
-  const { data: subscription, error } = await supabase
-    .from('subscriptions')
-    .upsert({
-      user_id: userId,
-      plan: 'annual',
-      ...data,
-    })
-    .select('*')
-    .single();
+  const { error } = await table.upsert({
+    user_id: userId,
+    status: 'active',
+    hotmart_subscription_id: details.subscription_id,
+    hotmart_purchase_id: details.purchase_id,
+    starts_at: details.starts_at || new Date().toISOString(),
+    expires_at: details.expires_at,
+    updated_at: new Date().toISOString(),
+  });
 
   if (error) throw error;
-
-  return { success: true as const, subscription };
-}
-
-export async function activateSubscription(
-  userId: string,
-  hotmartData: {
-    subscription_id?: string | null;
-    purchase_id?: string | null;
-    starts_at?: string | null;
-    expires_at?: string | null;
-  }
-) {
-  const startsAt = hotmartData.starts_at || new Date().toISOString();
-  const expiresAt =
-    hotmartData.expires_at ||
-    new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-
-  return upsertSubscription(userId, {
-    status: 'active',
-    starts_at: startsAt,
-    expires_at: expiresAt,
-    hotmart_subscription_id: hotmartData.subscription_id || undefined,
-    hotmart_purchase_id: hotmartData.purchase_id || undefined,
-  });
+  return { success: true };
 }
 
 export async function deactivateSubscription(userId: string) {
-  return upsertSubscription(userId, { status: 'inactive' });
+  const supabase = createSupabaseAdmin();
+  const { error } = await (supabase.from('subscriptions') as any)
+    .update({ status: 'inactive', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return { success: true };
 }
 
-export async function renewSubscription(userId: string, expiresAt?: string | null) {
-  const newExpiresAt =
-    expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+export async function renewSubscription(userId: string, newExpiration: string) {
+  const supabase = createSupabaseAdmin();
+  const { error } = await (supabase.from('subscriptions') as any)
+    .update({ 
+      status: 'active', 
+      expires_at: newExpiration, 
+      updated_at: new Date().toISOString() 
+    })
+    .eq('user_id', userId);
 
-  return upsertSubscription(userId, {
-    status: 'active',
-    expires_at: newExpiresAt,
-  });
+  if (error) throw error;
+  return { success: true };
 }
