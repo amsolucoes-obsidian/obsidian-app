@@ -15,9 +15,7 @@ export default function LoginPage() {
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.push('/');
-      }
+      if (session) router.push('/');
     };
     checkUser();
   }, [router, supabase]);
@@ -26,12 +24,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
-    
-    const { error } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password 
-    });
-    
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setErrorMsg('Erro: ' + error.message);
     } else {
@@ -41,45 +34,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl p-8 shadow-2xl">
-        <h1 className="text-3xl font-bold text-center text-gray-900 mb-8">OBSIDIAN</h1>
-        
-        {errorMsg && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center">
-            {errorMsg}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-xl p-8 shadow-2xl">
+        <h1 className="text-3xl font-extrabold text-center text-gray-900 mb-8 tracking-tight">OBSIDIAN</h1>
+        {errorMsg && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center border border-red-100">{errorMsg}</div>}
+        <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
-            <input
-              type="email"
-              className="w-full p-3 border border-gray-300 rounded-lg text-black outline-none focus:ring-2 focus:ring-blue-500"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail</label>
+            <input type="email" className="w-full p-3 border border-gray-300 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-            <input
-              type="password"
-              className="w-full p-3 border border-gray-300 rounded-lg text-black outline-none focus:ring-2 focus:ring-blue-500"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Senha</label>
+            <input type="password" className="w-full p-3 border border-gray-300 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
+          <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
+            {loading ? 'Acessando...' : 'Entrar no Sistema'}
           </button>
         </form>
       </div>
