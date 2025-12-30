@@ -1,22 +1,14 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-card: var(--card);
-  --color-border: var(--border);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  /* OBSIDIAN - Paleta de Cores Final */
+  /* OBSIDIAN - Paleta de Cores de Luxo */
   --background: #0a0a0a; /* Preto Profundo */
   --foreground: #ffffff; /* Branco Puro */
   --primary: #ff6b35;    /* Laranja Queimado */
-  --card: #111111;       /* Cinza quase preto para cards */
-  --border: rgba(255, 255, 255, 0.05); /* Bordas sutis */
-  --radius: 0px;         /* Visual brutalista sem bordas arredondadas */
+  --card: #111111;       /* Cinza para cards */
+  --border: rgba(255, 255, 255, 0.05);
 }
 
 @layer base {
@@ -25,71 +17,35 @@
   }
   
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/30;
+    @apply bg-[#0a0a0a] text-white antialiased;
     font-family: 'Inter', sans-serif; /* */
-    font-size: 16px;
-    line-height: 1.6;
-  }
-  
-  /* Ajuste de escala para Desktop */
-  @media (min-width: 768px) {
-    body { font-size: 18px; }
   }
 
   h1, h2, h3 {
-    font-family: 'Poppins', sans-serif;
-    @apply font-black uppercase tracking-tighter; /* */
-  }
-
-  /* Custom Scrollbar - Versão Dark Luxo */
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-background;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-white/10 hover:bg-primary transition-colors;
+    @apply font-black uppercase tracking-tighter;
+    font-family: 'Poppins', sans-serif; /* */
   }
 }
 
 @layer components {
-  /* Botões Premium */
+  /* Botões de Alta Fidelidade */
   .btn-primary {
     @apply px-10 py-4 bg-white text-black font-black uppercase tracking-widest text-sm 
-           hover:bg-primary hover:text-white transition-all duration-300 active:scale-95;
+           hover:bg-[#ff6b35] hover:text-white transition-all duration-300 active:scale-95;
   }
   
-  /* Efeito de Vidro para Cards */
-  .card-obsidian {
-    @apply bg-card border border-border p-6 md:p-10 transition-all duration-500 
-           hover:border-primary/40 relative overflow-hidden;
-  }
-
-  /* Inputs Dark */
-  .input-obsidian {
-    @apply w-full bg-background border border-border px-4 py-4 text-white 
-           focus:border-primary focus:outline-none transition-all font-inter;
-  }
-
-  .container-app {
-    @apply max-w-7xl mx-auto px-4 sm:px-8 lg:px-12; /* */
+  /* Layout de Grid Responsivo */
+  .dashboard-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
   }
 }
 
-@layer utilities {
-  .animate-obsidian-in {
-    animation: obsidianIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  }
+/* Animações nativas para evitar erros de build */
+.animate-obsidian {
+  animation: fadeIn 0.6s ease-out forwards;
+}
 
-  @keyframes obsidianIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
