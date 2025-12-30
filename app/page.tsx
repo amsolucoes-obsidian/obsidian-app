@@ -14,22 +14,6 @@ import SessionHistory from '@/components/SessionHistory';
 import ConsolidatedReport from '@/components/ConsolidatedReport';
 import ReportSelector from '@/components/ReportSelector';
 
-type AppState =
-  | 'loading'
-  | 'welcome'
-  | 'dashboard'
-  | 'module-selector'
-  | 'fluxo-caixa'
-  | 'balanco-patrimonial'
-  | 'history'
-  | 'report-selector'
-  | 'report';
-
-interface ReportConfig {
-  year: number;
-  moduleType: 'fluxo-caixa' | 'balanco-patrimonial';
-}
-
 export default function AppPage() {
   const router = useRouter();
   const supabase = createSupabaseClient();
@@ -37,13 +21,13 @@ export default function AppPage() {
   const [loading, setLoading] = useState(true);
   const [isSubscriptionActive, setIsSubscriptionActive] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [appState, setAppState] = useState<AppState>('loading');
+  const [appState, setAppState] = useState<string>('loading');
   const [showWelcome, setShowWelcome] = useState(true);
-  const [reportConfig, setReportConfig] = useState<ReportConfig>({
-    year: new Date().getFullYear(),
-    moduleType: 'fluxo-caixa',
-  });
   const [editSession, setEditSession] = useState<any>(null);
+  const [reportConfig, setReportConfig] = useState({
+    year: new Date().getFullYear(),
+    moduleType: 'fluxo-caixa' as 'fluxo-caixa' | 'balanco-patrimonial'
+  });
 
   useEffect(() => {
     checkAuth();
@@ -52,130 +36,103 @@ export default function AppPage() {
   const checkAuth = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-
-      // Se não estiver logado, manda para a página de login que criamos
       if (!session) {
         router.push('/login');
         return;
       }
-
       setUser(session.user);
 
-      // ✅ Verifica status da assinatura com casting 'as any' para evitar erro de build
       const status = await getSubscriptionStatusClient(session.user.id);
-      const statusAny = status as any;
-      const isActive = Boolean(statusAny?.isActive);
-
+      const isActive = (status as any)?.isActive;
       setIsSubscriptionActive(isActive);
 
       if (isActive) {
         const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
-        if (hasSeenWelcome) {
-          setShowWelcome(false);
-          setAppState('dashboard');
-        } else {
-          setAppState('welcome');
-        }
+        setAppState(hasSeenWelcome ? 'dashboard' : 'welcome');
       }
     } catch (error) {
-      console.error('Error checking auth:', error);
       router.push('/login');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStart = () => {
-    localStorage.setItem('hasSeenWelcome', 'true');
-    setShowWelcome(false);
-    setAppState('dashboard');
-  };
-
-  const handleDashboardNavigate = (destination: 'new-analysis' | 'history' | 'report') => {
-    if (destination === 'new-analysis') {
-      setAppState('module-selector');
-    } else if (destination === 'history') {
-      setAppState('history');
-    } else {
-      setAppState('report-selector');
-    }
-  };
-
-  const handleReportSelect = (year: number, moduleType: 'fluxo-caixa' | 'balanco-patrimonial') => {
-    setReportConfig({ year, moduleType });
-    setAppState('report');
-  };
-
-  const handleSelectModule = (module: 'fluxo-caixa' | 'balanco-patrimonial') => {
-    setAppState(module);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-secondary-900 flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg">Carregando Obsidian...</p>
-        </div>
+  if (loading) return (
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center text-white font-sans">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <p className="text-blue-400 font-medium">Carregando Obsidian...</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // Se o usuário está logado mas a assinatura está inativa (Hotmart não confirmou)
-  if (user && !isSubscriptionActive) {
-    return <SubscriptionBlockedScreen />;
-  }
+  if (user && !isSubscriptionActive) return <SubscriptionBlockedScreen />;
 
-  // Máquina de estados para renderizar o componente correto
-  switch (appState) {
-    case 'welcome':
-      return <WelcomeScreen onStart={handleStart} />;
-    case 'dashboard':
-      return <Dashboard onNavigate={handleDashboardNavigate} />;
-    case 'module-selector':
-      return <ModuleSelector onSelectModule={handleSelectModule} />;
-    case 'fluxo-caixa':
-      return (
-        <FluxoCaixaForm
-          onBack={() => {
-            setEditSession(null);
+  // RENDERIZAÇÃO COM O DESIGN MANUS (GRADIENTES E LAYOUT)
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-[#020617] via-[#0f172a] to-[#020617] text-white font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {appState === 'welcome' && (
+          <WelcomeScreen onStart={() => {
+            localStorage.setItem('hasSeenWelcome', 'true');
             setAppState('dashboard');
-          }}
-          editSession={editSession}
-        />
-      );
-    case 'balanco-patrimonial':
-      return (
-        <BalancoPatrimonialForm
-          onBack={() => {
-            setEditSession(null);
-            setAppState('dashboard');
-          }}
-          editSession={editSession}
-        />
-      );
-    case 'history':
-      return (
-        <SessionHistory
-          onBack={() => setAppState('dashboard')}
-          onEdit={(session) => {
-            setEditSession(session);
-            const s = session as any;
-            setAppState(s.module_type === 'fluxo-caixa' ? 'fluxo-caixa' : 'balanco-patrimonial');
-          }}
-        />
-      );
-    case 'report-selector':
-      return <ReportSelector onSelect={handleReportSelect} onBack={() => setAppState('dashboard')} />;
-    case 'report':
-      return (
-        <ConsolidatedReport
-          year={reportConfig.year}
-          moduleType={reportConfig.moduleType}
-          onBack={() => setAppState('dashboard')}
-        />
-      );
-    default:
-      return null;
-  }
+          }} />
+        )}
+
+        {appState === 'dashboard' && (
+          <Dashboard onNavigate={(dest: any) => {
+            if (dest === 'new-analysis') setAppState('module-selector');
+            else if (dest === 'history') setAppState('history');
+            else setAppState('report-selector');
+          }} />
+        )}
+
+        {appState === 'module-selector' && (
+          <ModuleSelector onSelectModule={(mod: any) => setAppState(mod)} />
+        )}
+
+        {appState === 'fluxo-caixa' && (
+          <FluxoCaixaForm 
+            onBack={() => setAppState('dashboard')} 
+            editSession={editSession} 
+          />
+        )}
+
+        {appState === 'balanco-patrimonial' && (
+          <BalancoPatrimonialForm 
+            onBack={() => setAppState('dashboard')} 
+            editSession={editSession} 
+          />
+        )}
+
+        {appState === 'history' && (
+          <SessionHistory 
+            onBack={() => setAppState('dashboard')}
+            onEdit={(session: any) => {
+              setEditSession(session);
+              setAppState(session.module_type);
+            }}
+          />
+        )}
+
+        {appState === 'report-selector' && (
+          <ReportSelector 
+            onBack={() => setAppState('dashboard')}
+            onSelect={(year, type) => {
+              setReportConfig({ year, moduleType: type });
+              setAppState('report');
+            }}
+          />
+        )}
+
+        {appState === 'report' && (
+          <ConsolidatedReport 
+            year={reportConfig.year}
+            moduleType={reportConfig.moduleType}
+            onBack={() => setAppState('dashboard')}
+          />
+        )}
+      </div>
+    </main>
+  );
 }
