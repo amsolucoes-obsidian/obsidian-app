@@ -14,7 +14,6 @@ export async function checkSubscriptionStatusServer(userId: string) {
       return { isActive: false, subscription: null, reason: 'Assinatura não encontrada' };
     }
 
-    // Blindagem contra erro de 'never'
     const subscription = JSON.parse(JSON.stringify(data));
 
     if (subscription.status !== 'active') {
@@ -35,4 +34,47 @@ export async function checkSubscriptionStatusServer(userId: string) {
   }
 }
 
-// ... (mantenha as outras funções activateSubscription, deactivateSubscription, etc.)
+// ✅ Função de Ativação
+export async function activateSubscription(userId: string, details: any) {
+  const supabase = createSupabaseAdmin();
+  const table = supabase.from('subscriptions') as any;
+
+  const { error } = await table.upsert({
+    user_id: userId,
+    status: 'active',
+    hotmart_subscription_id: details.subscription_id,
+    hotmart_purchase_id: details.purchase_id,
+    starts_at: details.starts_at || new Date().toISOString(),
+    expires_at: details.expires_at,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) throw error;
+  return { success: true };
+}
+
+// ✅ Função de Desativação
+export async function deactivateSubscription(userId: string) {
+  const supabase = createSupabaseAdmin();
+  const { error } = await (supabase.from('subscriptions') as any)
+    .update({ status: 'inactive', updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return { success: true };
+}
+
+// ✅ Função de Renovação
+export async function renewSubscription(userId: string, newExpiration: string) {
+  const supabase = createSupabaseAdmin();
+  const { error } = await (supabase.from('subscriptions') as any)
+    .update({ 
+      status: 'active', 
+      expires_at: newExpiration, 
+      updated_at: new Date().toISOString() 
+    })
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return { success: true };
+}
